@@ -55,3 +55,36 @@ func TestWithQueueName(t *testing.T) {
 		assert.Equal(t, qName, jobs[i].Queue)
 	}
 }
+
+func Test_schedulesHash(t *testing.T) {
+	connPool := new(dbMock.ConnPool)
+
+	s1 := NewScheduler(connPool)
+	s1.
+		MustAdd("@every 1m", "foo", nil).
+		MustAdd("*/3 * * * *", "bar", nil).
+		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`))
+
+	hash1 := s1.schedulesHash()
+	require.NotEmpty(t, hash1)
+
+	s2 := NewScheduler(connPool)
+	s2.
+		MustAdd("*/3 * * * *", "bar", nil).
+		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
+		MustAdd("@every 1m", "foo", nil)
+
+	hash2 := s2.schedulesHash()
+	require.NotEmpty(t, hash2)
+	assert.Equal(t, hash1, hash2)
+
+	s3 := NewScheduler(connPool)
+	s3.
+		MustAdd("*/3 * * * *", "bar", nil).
+		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
+		MustAdd("@every 2m", "foo", nil)
+
+	hash3 := s3.schedulesHash()
+	require.NotEmpty(t, hash3)
+	assert.NotEqual(t, hash1, hash3)
+}
