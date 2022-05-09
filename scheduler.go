@@ -1,11 +1,14 @@
 package gueron
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/vgarvardt/gue/v4"
+	"github.com/vgarvardt/gue/v4/adapter"
 )
 
 const defaultQueueName = "gueron"
@@ -19,23 +22,38 @@ type schedule struct {
 // Scheduler responsible for collecting period tasks and generating gue.Job list for defined period of time.
 type Scheduler struct {
 	parser    cron.Parser
+	connPool  adapter.ConnPool
 	schedules []schedule
 	queue     string
+	logger    adapter.Logger
+	gueClient *gue.Client
+
+	id string
 }
 
 // SchedulerOption is the Scheduler builder options
 type SchedulerOption func(s *Scheduler)
 
 // NewScheduler builds new Scheduler instance
-func NewScheduler(opts ...SchedulerOption) *Scheduler {
+func NewScheduler(connPool adapter.ConnPool, opts ...SchedulerOption) *Scheduler {
 	scheduler := Scheduler{
-		parser: cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
-		queue:  defaultQueueName,
+		parser:   cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
+		connPool: connPool,
+		queue:    defaultQueueName,
+		logger:   adapter.NoOpLogger{},
+
+		id: newID(),
 	}
 
 	for _, o := range opts {
 		o(&scheduler)
 	}
+
+	scheduler.gueClient = gue.NewClient(
+		scheduler.connPool,
+		gue.WithClientLogger(scheduler.logger),
+		gue.WithClientID(fmt.Sprintf("gueron-%s", scheduler.id)),
+	)
 
 	return &scheduler
 }
@@ -75,6 +93,22 @@ func (s *Scheduler) Jobs(since time.Time, duration time.Duration) (jobs []gue.Jo
 	return
 }
 
+// WorkersPool builds workers pool responsible for handling scheduled jobs.
+// Note that some gue.WorkerPoolOption will be overridden by Scheduler, they are:
+//   - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
+//   - gue.WithPoolID - "gueron-<random-id>/pool" will be used
+//   - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
+func (s *Scheduler) WorkersPool(wm gue.WorkMap, poolSize int, options ...gue.WorkerPoolOption) *gue.WorkerPool {
+	options = append(
+		options,
+		gue.WithPoolQueue(s.queue),
+		gue.WithPoolID(fmt.Sprintf("gueron-%s/pool", s.id)),
+		gue.WithPoolLogger(s.logger),
+	)
+
+	return gue.NewWorkerPool(s.gueClient, wm, poolSize, options...)
+}
+
 func (s *Scheduler) scheduleJobs(ss schedule, since, until time.Time) (jobs []gue.Job) {
 	for now := since; ; {
 		nextAt := ss.Next(now)
@@ -98,4 +132,16 @@ func WithQueueName(qName string) SchedulerOption {
 	return func(s *Scheduler) {
 		s.queue = qName
 	}
+}
+
+// WithLogger sets logger that will be used both for scheduler and gue.Client log
+func WithLogger(logger adapter.Logger) SchedulerOption {
+	return func(s *Scheduler) {
+		s.logger = logger
+	}
+}
+
+func newID() string {
+	hash := md5.Sum([]byte(time.Now().Format(time.RFC3339Nano)))
+	return hex.EncodeToString(hash[:])[:6]
 }

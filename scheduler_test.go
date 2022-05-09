@@ -6,10 +6,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	dbMock "github.com/vgarvardt/gue/v4/adapter/testing"
 )
 
 func TestNewScheduler(t *testing.T) {
-	s := NewScheduler()
+	connPool := new(dbMock.ConnPool)
+
+	s := NewScheduler(connPool)
 	s.
 		MustAdd("@every 1m", "foo", nil).
 		MustAdd("*/3 * * * *", "bar", []byte(`qwe`))
@@ -31,8 +34,10 @@ func TestNewScheduler(t *testing.T) {
 }
 
 func TestWithQueueName(t *testing.T) {
+	connPool := new(dbMock.ConnPool)
+
 	qName := "custom-queue"
-	s := NewScheduler(WithQueueName(qName))
+	s := NewScheduler(connPool, WithQueueName(qName))
 	s.
 		MustAdd("@hourly", "foo", nil).
 		MustAdd("@every 1h", "bar", nil)
