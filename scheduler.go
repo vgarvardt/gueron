@@ -93,6 +93,11 @@ func (s *Scheduler) Jobs(since time.Time, duration time.Duration) (jobs []gue.Jo
 	return
 }
 
+// WorkersPool builds workers pool responsible for handling scheduled jobs.
+// Note that some gue.WorkerPoolOption will be overridden by Scheduler, they are:
+//   - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
+//   - gue.WithPoolID - "gueron-<random-id>/pool" will be used
+//   - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
 func (s *Scheduler) WorkersPool(wm gue.WorkMap, poolSize int, options ...gue.WorkerPoolOption) *gue.WorkerPool {
 	options = append(
 		options,
