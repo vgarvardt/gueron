@@ -2,8 +2,11 @@ package gueron
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -15,6 +18,7 @@ const defaultQueueName = "gueron"
 
 type schedule struct {
 	cron.Schedule
+	spec    string
 	jobType string
 	args    []byte
 }
@@ -70,7 +74,7 @@ func (s *Scheduler) Add(spec, jobType string, args []byte) (*Scheduler, error) {
 		return s, fmt.Errorf("could not parse spec into cron schedule: %w", err)
 	}
 
-	s.schedules = append(s.schedules, schedule{sch, jobType, args})
+	s.schedules = append(s.schedules, schedule{sch, spec, jobType, args})
 
 	return s, err
 }
@@ -125,6 +129,17 @@ func (s *Scheduler) scheduleJobs(ss schedule, since, until time.Time) (jobs []gu
 		now = nextAt
 	}
 	return
+}
+
+func (s *Scheduler) schedulesHash() string {
+	schedules := make([]string, len(s.schedules))
+	for i := range s.schedules {
+		schedules[i] = fmt.Sprintf("%s%s", s.schedules[i].jobType, s.schedules[i].spec) + string(s.schedules[i].args)
+	}
+
+	sort.Strings(schedules)
+	hash := sha256.Sum256([]byte(strings.Join(schedules, "")))
+	return hex.EncodeToString(hash[:])[:12]
 }
 
 // WithQueueName sets custom scheduler queue name
