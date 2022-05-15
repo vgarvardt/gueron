@@ -18,7 +18,7 @@ be scheduled if it is critical to handle jobs ASAP and avoid delayed execution.
 go get -u github.com/vgarvardt/gueron
 ```
 
-Additionally, you need to apply [gue DB migration].
+Additionally, you need to apply [DB migration](./schema.sql) (includes `gue` migration as well).
 
 ## Scheduler format
 
@@ -55,7 +55,6 @@ package main
 
 <!-- @formatter:off -->
 [github.com/vgarvardt/gue]: https://github.com/vgarvardt/gue
-[gue DB migration]: https://github.com/vgarvardt/gue/blob/master/schema.sql
 [github.com/robfig/cron/v3]: https://github.com/robfig/cron
 [crontab format]: https://en.wikipedia.org/wiki/Cron
 [`time.ParseDuration()`]: https://pkg.go.dev/time#ParseDuration
