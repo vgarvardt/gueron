@@ -59,7 +59,9 @@ type Scheduler struct {
 // SchedulerOption is the Scheduler builder options
 type SchedulerOption func(s *Scheduler)
 
-// NewScheduler builds new Scheduler instance
+// NewScheduler builds new Scheduler instance.
+// Note that internally Scheduler uses gue.Client with the backoff set to gue.BackoffNever, so any errored job
+// will be discarded immediately - this is how original cron works.
 func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) *Scheduler {
 	scheduler := Scheduler{
 		id:      newID(),
@@ -79,6 +81,7 @@ func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) *Scheduler {
 		scheduler.pool,
 		gue.WithClientLogger(scheduler.logger),
 		gue.WithClientID(fmt.Sprintf("gueron-%s", scheduler.id)),
+		gue.WithClientBackoff(gue.BackoffNever),
 	)
 
 	return &scheduler
