@@ -8,9 +8,15 @@ tasks:
   test:
     summary: Run tests
     cmds:
+      - task: test-short
       - task: test-deps-up
-      - task: test-run
+      - task: test-all
       - task: test-deps-down
+
+  test-short:
+    summary: Runs short/unit tests, acts like a smoke test before spinning up dependencies and running all tests
+    cmds:
+      - cmd: go test -timeout 2m -short ./...
 
   test-deps-up:
     summary: Starts test dependencies
@@ -25,8 +31,8 @@ tasks:
     cmds:
       - cmd: docker-compose down -v
 
-  test-run:
-    summary: Runs tests, must have dependencies running in the docker-compose
+  test-all:
+    summary: Runs all tests, must have dependencies running in the docker-compose
     cmds:
       - cmd: go test -timeout 2m -cover -coverprofile=coverage.txt -covermode=atomic ./...
     vars:
