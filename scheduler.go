@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"sort"
 	"strings"
 	"sync"
@@ -184,7 +185,7 @@ func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, optio
 	return wp.Run(ctx)
 }
 
-func (s *Scheduler) refreshScheduleJob(ctx context.Context, j *gue.Job) error {
+func (s *Scheduler) refreshScheduleJob(ctx context.Context, _ *gue.Job) error {
 	return s.refreshSchedule(ctx, true)
 }
 
@@ -349,7 +350,10 @@ func (s *Scheduler) schedulesHash() string {
 }
 
 func (s *Scheduler) advisoryLock() string {
-	return fmt.Sprintf("gueron-lock-%d", idSalt)
+	// inspired by https://pkg.go.dev/github.com/golang-migrate/migrate/v4@v4.15.2/database#GenerateAdvisoryLockId
+	sum := crc32.ChecksumIEEE([]byte("gueron-lock"))
+	sum = sum * uint32(idSalt)
+	return fmt.Sprint(sum)
 }
 
 func (s *Scheduler) lockDB(ctx context.Context) (err error) {

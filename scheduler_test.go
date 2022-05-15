@@ -208,3 +208,85 @@ func Test_scheduleJobs(t *testing.T) {
 	require.Len(t, jobs["bar"], 3)
 	require.Len(t, jobs[schedulerJobType], 1)
 }
+
+func Test_refreshSchedule(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	ctx := context.Background()
+	pool := dbTest.OpenTestPoolPGXv5(t)
+	logger := zap.New(zaptest.NewLogger(t))
+	queue := time.Now().Format(time.RFC3339Nano)
+	clk := clock.NewMock()
+	horizon := 10 * time.Minute
+
+	_, err := pool.Exec(ctx, `TRUNCATE gueron_meta`)
+	require.NoError(t, err)
+
+	s := NewScheduler(pool, WithLogger(logger), WithQueueName(queue), WithHorizon(horizon))
+	s.clock = clk
+
+	s.
+		MustAdd("@every 1m", "foo", nil).
+		MustAdd("*/3 * * * *", "bar", nil)
+
+	schedulesHash1 := s.schedulesHash()
+
+	// initial schedule - initial meta should be saved
+	now1 := time.Date(2022, 5, 8, 21, 27, 3, 0, time.UTC)
+	clk.Set(now1)
+
+	err = s.refreshSchedule(ctx, false)
+	require.NoError(t, err)
+
+	var (
+		metaQueue, metaHash        string
+		metaScheduled, metaHorizon time.Time
+	)
+
+	err = pool.
+		QueryRow(ctx, `SELECT queue, hash, scheduled_at, horizon_at FROM gueron_meta`).
+		Scan(&metaQueue, &metaHash, &metaScheduled, &metaHorizon)
+	require.NoError(t, err)
+
+	assert.Equal(t, queue, metaQueue)
+	assert.Equal(t, schedulesHash1, metaHash)
+	assert.Equal(t, now1.UTC(), metaScheduled.UTC())
+	assert.Equal(t, now1.Add(horizon).UTC(), metaHorizon.UTC())
+
+	// two minutes later - no reschedule should happen w/out force
+	now2 := time.Date(2022, 5, 8, 21, 29, 3, 0, time.UTC)
+	clk.Set(now2)
+
+	err = s.refreshSchedule(ctx, false)
+	require.NoError(t, err)
+
+	err = pool.
+		QueryRow(ctx, `SELECT queue, hash, scheduled_at, horizon_at FROM gueron_meta`).
+		Scan(&metaQueue, &metaHash, &metaScheduled, &metaHorizon)
+	require.NoError(t, err)
+
+	assert.Equal(t, queue, metaQueue)
+	assert.Equal(t, schedulesHash1, metaHash)
+	assert.Equal(t, now1.UTC(), metaScheduled.UTC())
+	assert.Equal(t, now1.Add(horizon).UTC(), metaHorizon.UTC())
+
+	// adding new schedule should change schedules hash - this should cause reschedule
+	s.MustAdd("@every 2m", "baz", nil)
+	schedulesHash2 := s.schedulesHash()
+	require.NotEqual(t, schedulesHash1, schedulesHash2)
+
+	err = s.refreshSchedule(ctx, false)
+	require.NoError(t, err)
+
+	err = pool.
+		QueryRow(ctx, `SELECT queue, hash, scheduled_at, horizon_at FROM gueron_meta`).
+		Scan(&metaQueue, &metaHash, &metaScheduled, &metaHorizon)
+	require.NoError(t, err)
+
+	assert.Equal(t, queue, metaQueue)
+	assert.Equal(t, schedulesHash2, metaHash)
+	assert.Equal(t, now2.UTC(), metaScheduled.UTC())
+	assert.Equal(t, now2.Add(horizon).UTC(), metaHorizon.UTC())
+}
