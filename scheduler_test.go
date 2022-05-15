@@ -2,6 +2,7 @@ package gueron
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgarvardt/gue/v4"
+	"github.com/vgarvardt/gue/v4/adapter"
 	dbTest "github.com/vgarvardt/gue/v4/adapter/testing"
 	"github.com/vgarvardt/gue/v4/adapter/zap"
 	"go.uber.org/zap/zaptest"
@@ -150,15 +152,13 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	err = tx2.Commit(ctx)
 	require.NoError(t, err)
 
-	err = jLocked.Error(ctx, "just return to queue")
+	err = jLocked.Error(ctx, "discard a job")
 	require.NoError(t, err)
 
 	jLockedAgain, err := s.gueClient.LockJobByID(ctx, j2.ID)
-	require.NoError(t, err)
-	assert.Equal(t, j2.ID, jLockedAgain.ID)
-
-	err = jLockedAgain.Done(ctx)
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, adapter.ErrNoRows))
+	assert.Nil(t, jLockedAgain)
 }
 
 func Test_scheduleJobs(t *testing.T) {
