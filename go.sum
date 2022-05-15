@@ -124,8 +124,8 @@ github.com/stretchr/testify v1.7.1 h1:5TQK59W5E3v0r2duFAb7P95B6hEeOyEnHRa8MjYSMT
 github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/vgarvardt/backoff v1.0.0 h1:VKub60RkA/po0gz0fHsr1vWb6pbyvOQpOs/4Ciw4atM=
 github.com/vgarvardt/backoff v1.0.0/go.mod h1:Om8PDVpm4MpRNDg/IKpJWsvS2MabY7LtwSahd09zg8E=
-github.com/vgarvardt/gue/v4 v4.0.0-alpha.6 h1:ZFj6gVRHRizVe5UxGLBDw7oGrT3QGyevugGo9TL1lqA=
-github.com/vgarvardt/gue/v4 v4.0.0-alpha.6/go.mod h1:iZj7QRe3+rAgzLrEryyfa1Sv73VfWFylTv5TLPJ204c=
+github.com/vgarvardt/gue/v4 v4.0.0-alpha.7 h1:kiuM2UrVJ4yVc9cRgRQql6z19vek9suvB1MfNm8lurc=
+github.com/vgarvardt/gue/v4 v4.0.0-alpha.7/go.mod h1:lCXeCMyXYlw3Rf1dULwrTcQ0XE2nd0rxigk8MkqqR4Y=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
