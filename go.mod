@@ -3,6 +3,7 @@ module github.com/vgarvardt/gueron
 go 1.18
 
 require (
+	github.com/benbjohnson/clock v1.3.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.7.1
@@ -11,7 +12,6 @@ require (
 )
 
 require (
-	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
 	github.com/jackc/pgconn v1.12.1 // indirect

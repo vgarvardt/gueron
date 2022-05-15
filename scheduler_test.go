@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgarvardt/gue/v4"
@@ -158,4 +159,52 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 
 	err = jLockedAgain.Done(ctx)
 	assert.NoError(t, err)
+}
+
+func Test_scheduleJobs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	ctx := context.Background()
+	pool := dbTest.OpenTestPoolPGXv5(t)
+	logger := zap.New(zaptest.NewLogger(t))
+	queue := time.Now().Format(time.RFC3339Nano)
+	clk := clock.NewMock()
+
+	s := NewScheduler(pool, WithLogger(logger), WithQueueName(queue), WithHorizon(10*time.Minute))
+	s.clock = clk
+
+	s.
+		MustAdd("@every 1m", "foo", nil).
+		MustAdd("*/3 * * * *", "bar", nil)
+
+	now := time.Date(2022, 5, 8, 21, 27, 3, 0, time.UTC)
+	clk.Set(now)
+
+	schedulesHash := s.schedulesHash()
+	err := s.scheduleJobs(ctx, schedulesHash)
+	require.NoError(t, err)
+
+	rows, err := pool.Query(ctx, `SELECT job_type, run_at FROM gue_jobs WHERE queue = $1 ORDER BY run_at ASC`, queue)
+	require.NoError(t, err)
+
+	jobs := make(map[string][]time.Time)
+	for rows.Next() {
+		var (
+			jobType string
+			runAt   time.Time
+		)
+		err := rows.Scan(&jobType, &runAt)
+		require.NoError(t, err)
+
+		jobs[jobType] = append(jobs[jobType], runAt)
+	}
+
+	err = rows.Err()
+	require.NoError(t, err)
+	require.Len(t, jobs, 3)
+	require.Len(t, jobs["foo"], 10)
+	require.Len(t, jobs["bar"], 3)
+	require.Len(t, jobs[schedulerJobType], 1)
 }

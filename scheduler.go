@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/jmoiron/sqlx"
 	"github.com/robfig/cron/v3"
 	"github.com/vgarvardt/gue/v4"
@@ -40,6 +41,7 @@ type Scheduler struct {
 	mu      sync.RWMutex
 	running bool
 	id      string
+	clock   clock.Clock
 
 	parser    cron.Parser
 	pool      adapter.ConnPool
@@ -65,6 +67,7 @@ func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) *Scheduler {
 		queue:   defaultQueueName,
 		logger:  adapter.NoOpLogger{},
 		horizon: defaultHorizon,
+		clock:   clock.New(),
 	}
 
 	for _, o := range opts {
@@ -244,7 +247,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) erro
 	}
 
 	// Generate list of new jobs to schedule and enqueue them
-	now := time.Now()
+	now := s.clock.Now()
 	jobsToSchedule := s.jobsToSchedule(now)
 	for i := range jobsToSchedule {
 		if err := s.gueClient.EnqueueTx(ctx, &jobsToSchedule[i], tx); err != nil {
