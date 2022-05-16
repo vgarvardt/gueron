@@ -68,8 +68,7 @@ func TestWithQueueName(t *testing.T) {
 func Test_schedulesHash(t *testing.T) {
 	connPool := new(dbTest.ConnPool)
 
-	s1 := NewScheduler(connPool)
-	s1.
+	s1 := NewScheduler(connPool).
 		MustAdd("@every 1m", "foo", nil).
 		MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`))
@@ -77,8 +76,7 @@ func Test_schedulesHash(t *testing.T) {
 	hash1 := s1.schedulesHash()
 	require.NotEmpty(t, hash1)
 
-	s2 := NewScheduler(connPool)
-	s2.
+	s2 := NewScheduler(connPool).
 		MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
 		MustAdd("@every 1m", "foo", nil)
@@ -87,8 +85,7 @@ func Test_schedulesHash(t *testing.T) {
 	require.NotEmpty(t, hash2)
 	assert.Equal(t, hash1, hash2)
 
-	s3 := NewScheduler(connPool)
-	s3.
+	s3 := NewScheduler(connPool).
 		MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
 		MustAdd("@every 2m", "foo", nil)
@@ -96,6 +93,16 @@ func Test_schedulesHash(t *testing.T) {
 	hash3 := s3.schedulesHash()
 	require.NotEmpty(t, hash3)
 	assert.NotEqual(t, hash1, hash3)
+
+	randomQueueName := time.Now().Format(time.RFC3339Nano)
+	s4 := NewScheduler(connPool, WithQueueName(randomQueueName)).
+		MustAdd("*/3 * * * *", "bar", nil).
+		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
+		MustAdd("@every 2m", "foo", nil)
+
+	hash4 := s4.schedulesHash()
+	require.NotEmpty(t, hash4)
+	assert.NotEqual(t, hash3, hash4)
 }
 
 func Test_cleanupScheduledLeftovers(t *testing.T) {

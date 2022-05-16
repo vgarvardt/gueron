@@ -348,6 +348,9 @@ func (s *Scheduler) schedulesHash() string {
 	}
 
 	sort.Strings(schedules)
+	// include queue name and horizon into schedules hash to track their changes as well as they affect schedules
+	schedules = append(schedules, s.queue, s.horizon.String())
+
 	hash := sha256.Sum256([]byte(strings.Join(schedules, "")))
 	return hex.EncodeToString(hash[:])[:12]
 }
