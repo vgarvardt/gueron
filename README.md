@@ -50,7 +50,61 @@ and with the nonstandard predefined scheduling definitions:
 ```go
 package main
 
-// TODO: add an example
+import (
+  "context"
+  "log"
+  "os"
+  "os/signal"
+  "syscall"
+
+  "github.com/jackc/pgx/v5/pgxpool"
+  "github.com/vgarvardt/gue/v4"
+  "github.com/vgarvardt/gue/v4/adapter/pgxv5"
+)
+
+func main() {
+  pgxCfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  pgxPool, err := pgxpool.ConnectConfig(context.Background(), pgxCfg)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer pgxPool.Close()
+
+  poolAdapter := pgxv5.NewConnPool(pgxPool)
+
+  s := gueron.NewScheduler(poolAdapter)
+  wm := gue.WorkMap{}
+
+  s.MustAdd("@every 15m", "log-foo-bar", nil)
+  wm["log-foo-bar"] = func(ctx context.Context, j *gue.Job) error {
+    log.Printf("Working scheduled job: %d\n", j.ID)
+    return nil
+  }
+
+  ctx, cancel := context.WithCancel(context.Background())
+  go func() {
+    if err := s.Run(ctx, wm, 4); err != nil {
+      log.Fatal(err)
+    }
+  }()
+
+  sigChan := make(chan os.Signal, 1)
+  signal.Notify(sigChan, os.Interrupt,
+    syscall.SIGHUP,
+    syscall.SIGINT,
+    syscall.SIGTERM,
+    syscall.SIGQUIT,
+  )
+
+  // wait for exit signal, e.g. the one sent by Ctrl-C
+  sig := <-sigChan
+  cancel()
+  log.Printf("Got exit signal [%s], exiting...\n", sig.String())
+}
 ```
 
 <!-- @formatter:off -->
