@@ -265,9 +265,13 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) erro
 	refreshJob := gue.Job{
 		Queue:    s.queue,
 		Priority: gue.JobPriorityHighest,
-		RunAt:    horizonAt.Add(-15 * time.Second),
 		Type:     schedulerJobType,
-		Args:     nil,
+		// There is possibility that some scheduled jobs will be discarded when there are many jobs scheduled right on
+		// the horizon time and there are not enough workers to pick all of them together with this one, so that this
+		// one will run first because of the highest priority and will discard non-started scheduled jobs. If this will
+		// really become real issue - either workers pool should be increased, or a fix should be made - either schedule
+		// this job to a slightly later time, e.g. +1s, or lower its priority, or all of this, or something else.
+		RunAt: horizonAt,
 	}
 	if err := s.gueClient.EnqueueTx(ctx, &refreshJob, tx); err != nil {
 		s.logger.Error("Could not enqueue refresh job", adapter.Err(err), adapter.F("job", &refreshJob))
