@@ -20,7 +20,8 @@ func TestNewScheduler(t *testing.T) {
 	connPool := new(dbTest.ConnPool)
 	logger := zap.New(zaptest.NewLogger(t))
 
-	s := NewScheduler(connPool, WithHorizon(10*time.Minute), WithLogger(logger))
+	s, err := NewScheduler(connPool, WithHorizon(10*time.Minute), WithLogger(logger))
+	require.NoError(t, err)
 	s.
 		MustAdd("@every 1m", "foo", nil).
 		MustAdd("*/3 * * * *", "bar", []byte(`qwe`))
@@ -41,43 +42,21 @@ func TestNewScheduler(t *testing.T) {
 	assert.Equal(t, defaultQueueName, jobs[0].Queue)
 }
 
-func TestWithQueueName(t *testing.T) {
-	connPool := new(dbTest.ConnPool)
-	logger := zap.New(zaptest.NewLogger(t))
-
-	qName := "custom-queue"
-	s := NewScheduler(connPool, WithQueueName(qName), WithHorizon(2*time.Hour), WithLogger(logger))
-	s.
-		MustAdd("@hourly", "foo", nil).
-		MustAdd("@every 1h", "bar", nil)
-
-	now := time.Date(2022, 5, 8, 21, 59, 33, 0, time.UTC)
-	jobs := s.jobsToSchedule(now)
-	require.Len(t, jobs, 4)
-
-	assert.Equal(t, "foo", jobs[0].Type)
-	assert.Equal(t, "foo", jobs[1].Type)
-	assert.Equal(t, "bar", jobs[2].Type)
-	assert.Equal(t, "bar", jobs[3].Type)
-
-	for i := range jobs {
-		assert.Equal(t, qName, jobs[i].Queue)
-	}
-}
-
 func Test_schedulesHash(t *testing.T) {
 	connPool := new(dbTest.ConnPool)
 
-	s1 := NewScheduler(connPool).
-		MustAdd("@every 1m", "foo", nil).
+	s1, err := NewScheduler(connPool)
+	require.NoError(t, err)
+	s1.MustAdd("@every 1m", "foo", nil).
 		MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`))
 
 	hash1 := s1.schedulesHash()
 	require.NotEmpty(t, hash1)
 
-	s2 := NewScheduler(connPool).
-		MustAdd("*/3 * * * *", "bar", nil).
+	s2, err := NewScheduler(connPool)
+	require.NoError(t, err)
+	s2.MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
 		MustAdd("@every 1m", "foo", nil)
 
@@ -85,8 +64,9 @@ func Test_schedulesHash(t *testing.T) {
 	require.NotEmpty(t, hash2)
 	assert.Equal(t, hash1, hash2)
 
-	s3 := NewScheduler(connPool).
-		MustAdd("*/3 * * * *", "bar", nil).
+	s3, err := NewScheduler(connPool)
+	require.NoError(t, err)
+	s3.MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
 		MustAdd("@every 2m", "foo", nil)
 
@@ -95,8 +75,9 @@ func Test_schedulesHash(t *testing.T) {
 	assert.NotEqual(t, hash1, hash3)
 
 	randomQueueName := time.Now().Format(time.RFC3339Nano)
-	s4 := NewScheduler(connPool, WithQueueName(randomQueueName)).
-		MustAdd("*/3 * * * *", "bar", nil).
+	s4, err := NewScheduler(connPool, WithQueueName(randomQueueName))
+	require.NoError(t, err)
+	s4.MustAdd("*/3 * * * *", "bar", nil).
 		MustAdd("@hourly", "bar", []byte(`{"foo":bar}`)).
 		MustAdd("@every 2m", "foo", nil)
 
@@ -116,7 +97,8 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	now := time.Now()
 	queue := now.Format(time.RFC3339Nano)
 
-	s := NewScheduler(pool, WithLogger(logger), WithQueueName(queue))
+	s, err := NewScheduler(pool, WithLogger(logger), WithQueueName(queue))
+	require.NoError(t, err)
 
 	// no jobs yet, nothing to clean up
 	tx1, err := pool.Begin(ctx)
@@ -179,7 +161,8 @@ func Test_scheduleJobs(t *testing.T) {
 	queue := time.Now().Format(time.RFC3339Nano)
 	clk := clock.NewMock()
 
-	s := NewScheduler(pool, WithLogger(logger), WithQueueName(queue), WithHorizon(10*time.Minute))
+	s, err := NewScheduler(pool, WithLogger(logger), WithQueueName(queue), WithHorizon(10*time.Minute))
+	require.NoError(t, err)
 	s.clock = clk
 
 	s.
@@ -190,7 +173,7 @@ func Test_scheduleJobs(t *testing.T) {
 	clk.Set(now)
 
 	schedulesHash := s.schedulesHash()
-	err := s.scheduleJobs(ctx, schedulesHash)
+	err = s.scheduleJobs(ctx, schedulesHash)
 	require.NoError(t, err)
 
 	rows, err := pool.Query(ctx, `SELECT job_type, run_at FROM gue_jobs WHERE queue = $1 ORDER BY run_at ASC`, queue)
@@ -211,9 +194,9 @@ func Test_scheduleJobs(t *testing.T) {
 	err = rows.Err()
 	require.NoError(t, err)
 	require.Len(t, jobs, 3)
-	require.Len(t, jobs["foo"], 10)
-	require.Len(t, jobs["bar"], 3)
-	require.Len(t, jobs[schedulerJobType], 1)
+	assert.Len(t, jobs["foo"], 10)
+	assert.Len(t, jobs["bar"], 3)
+	assert.Len(t, jobs[schedulerJobType], 1)
 }
 
 func Test_refreshSchedule(t *testing.T) {
@@ -231,7 +214,8 @@ func Test_refreshSchedule(t *testing.T) {
 	_, err := pool.Exec(ctx, `TRUNCATE gueron_meta`)
 	require.NoError(t, err)
 
-	s := NewScheduler(pool, WithLogger(logger), WithQueueName(queue), WithHorizon(horizon))
+	s, err := NewScheduler(pool, WithLogger(logger), WithQueueName(queue), WithHorizon(horizon))
+	require.NoError(t, err)
 	s.clock = clk
 
 	s.
