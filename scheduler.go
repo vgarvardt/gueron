@@ -18,6 +18,8 @@ import (
 	"github.com/robfig/cron/v3"
 	"github.com/vgarvardt/gue/v4"
 	"github.com/vgarvardt/gue/v4/adapter"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/nonrecording"
 )
 
 const (
@@ -51,18 +53,16 @@ type Scheduler struct {
 	logger    adapter.Logger
 	gueClient *gue.Client
 	horizon   time.Duration
+	meter     metric.Meter
 
 	muc  sync.Mutex
 	conn adapter.Conn
 }
 
-// SchedulerOption is the Scheduler builder options
-type SchedulerOption func(s *Scheduler)
-
 // NewScheduler builds new Scheduler instance.
 // Note that internally Scheduler uses gue.Client with the backoff set to gue.BackoffNever, so any errored job
 // will be discarded immediately - this is how original cron works.
-func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) *Scheduler {
+func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) (*Scheduler, error) {
 	scheduler := Scheduler{
 		id:      newID(),
 		parser:  cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
@@ -71,28 +71,31 @@ func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) *Scheduler {
 		logger:  adapter.NoOpLogger{},
 		horizon: defaultHorizon,
 		clock:   clock.New(),
+		meter:   nonrecording.NewNoopMeterProvider().Meter("noop"),
 	}
 
 	for _, o := range opts {
 		o(&scheduler)
 	}
 
-	scheduler.gueClient = gue.NewClient(
+	var err error
+	scheduler.gueClient, err = gue.NewClient(
 		scheduler.pool,
 		gue.WithClientLogger(scheduler.logger),
 		gue.WithClientID(fmt.Sprintf("gueron-%s", scheduler.id)),
 		gue.WithClientBackoff(gue.BackoffNever),
+		gue.WithClientMeter(scheduler.meter),
 	)
 
-	return &scheduler
+	return &scheduler, err
 }
 
 // Add adds new periodic task information to the Scheduler. Parameters are:
-//   - spec is the cron specification parsable by the github.com/robfig/cron/v3
-//   - jobType gue.Job Type value, make sure that gue.WorkerPool that will be handling jobs is aware of all the values
-//   - args is the gue.Job Args, can be used to pass some static parameters to the scheduled job, e.g. when the same
-//     job type is used in several crons and handler has some branching logic based on the arguments. Make sure this
-//     value is valid JSON as this is gue DB constraint
+//  - spec is the cron specification parsable by the github.com/robfig/cron/v3
+//  - jobType gue.Job Type value, make sure that gue.WorkerPool that will be handling jobs is aware of all the values
+//  - args is the gue.Job Args, can be used to pass some static parameters to the scheduled job, e.g. when the same
+//    job type is used in several crons and handler has some branching logic based on the arguments. Make sure this
+//    value is valid JSON as this is gue DB constraint
 func (s *Scheduler) Add(spec, jobType string, args []byte) (*Scheduler, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -145,9 +148,9 @@ func (s *Scheduler) jobsToSchedule(since time.Time) (jobs []gue.Job) {
 // Run blocks until all workers exit. Use context cancellation for shutdown.
 // WorkerMap parameter must have all the handlers that are going to handle cron jobs.
 // Note that some gue.WorkerPoolOption will be overridden by Scheduler, they are:
-//   - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
-//   - gue.WithPoolID - "gueron-<random-id>/pool" will be used
-//   - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
+//  - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
+//  - gue.WithPoolID - "gueron-<random-id>/pool" will be used
+//  - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
 func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, options ...gue.WorkerPoolOption) error {
 	s.mu.Lock()
 	if s.running {
@@ -184,7 +187,11 @@ func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, optio
 	// special job that will refresh schedules
 	wm[schedulerJobType] = s.refreshScheduleJob
 
-	wp := gue.NewWorkerPool(s.gueClient, wm, poolSize, options...)
+	wp, err := gue.NewWorkerPool(s.gueClient, wm, poolSize, options...)
+	if err != nil {
+		return fmt.Errorf("could not instantiate workers pool: %w", err)
+	}
+
 	return wp.Run(ctx)
 }
 
@@ -404,29 +411,6 @@ func (s *Scheduler) unlockDB(ctx context.Context) (err error) {
 
 	s.conn = nil
 	return nil
-}
-
-// WithQueueName sets custom scheduler queue name
-func WithQueueName(qName string) SchedulerOption {
-	return func(s *Scheduler) {
-		s.queue = qName
-	}
-}
-
-// WithLogger sets logger that will be used both for scheduler and gue.Client log
-func WithLogger(logger adapter.Logger) SchedulerOption {
-	return func(s *Scheduler) {
-		s.logger = logger
-	}
-}
-
-// WithHorizon sets the scheduler cron jobs scheduling horizon. The more often the app is being redeployed/restarted
-// the shorter the schedule horizon should be as rescheduling causes stop-the-world situation, so the fewer jobs to
-// schedule or the shorter the horizon - the quicker the crons are ready to perform the duties.
-func WithHorizon(d time.Duration) SchedulerOption {
-	return func(s *Scheduler) {
-		s.horizon = d
-	}
 }
 
 func newID() string {

@@ -76,7 +76,11 @@ func main() {
 
   poolAdapter := pgxv5.NewConnPool(pgxPool)
 
-  s := gueron.NewScheduler(poolAdapter)
+  s, err := gueron.NewScheduler(poolAdapter)
+  if err != nil {
+    log.Fatal(err)
+  }
+
   wm := gue.WorkMap{}
 
   s.MustAdd("@every 15m", "log-foo-bar", nil)
