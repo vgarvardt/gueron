@@ -19,7 +19,6 @@ import (
 	"github.com/vgarvardt/gue/v4"
 	"github.com/vgarvardt/gue/v4/adapter"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/nonrecording"
 )
 
 const (
@@ -71,7 +70,7 @@ func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) (*Scheduler, e
 		logger:  adapter.NoOpLogger{},
 		horizon: defaultHorizon,
 		clock:   clock.New(),
-		meter:   nonrecording.NewNoopMeterProvider().Meter("noop"),
+		meter:   metric.NewNoopMeterProvider().Meter("noop"),
 	}
 
 	for _, o := range opts {

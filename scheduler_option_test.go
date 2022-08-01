@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	dbTest "github.com/vgarvardt/gue/v4/adapter/testing"
 	"github.com/vgarvardt/gue/v4/adapter/zap"
-	"go.opentelemetry.io/otel/metric/nonrecording"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -40,7 +40,7 @@ func TestWithQueueName(t *testing.T) {
 func TestWithMeter(t *testing.T) {
 	connPool := new(dbTest.ConnPool)
 	logger := zap.New(zaptest.NewLogger(t))
-	customMeter := nonrecording.NewNoopMeterProvider().Meter("custom")
+	customMeter := metric.NewNoopMeterProvider().Meter("custom")
 
 	s, err := NewScheduler(connPool, WithLogger(logger), WithMeter(customMeter))
 	require.NoError(t, err)
