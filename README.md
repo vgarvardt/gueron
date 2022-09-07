@@ -68,7 +68,7 @@ func main() {
     log.Fatal(err)
   }
 
-  pgxPool, err := pgxpool.ConnectConfig(context.Background(), pgxCfg)
+  pgxPool, err := pgxpool.NewConfig(context.Background(), pgxCfg)
   if err != nil {
     log.Fatal(err)
   }
