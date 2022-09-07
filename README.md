@@ -5,7 +5,7 @@
 [![ReportCard](https://goreportcard.com/badge/github.com/vgarvardt/gueron)](https://goreportcard.com/report/github.com/vgarvardt/gueron)
 [![License](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)
 
-Gue is Golang cron implemented on top of [github.com/vgarvardt/gue]. It uses [github.com/robfig/cron/v3] to calculate
+Gueron is Golang cron implemented on top of [github.com/vgarvardt/gue]. It uses [github.com/robfig/cron/v3] to calculate
 execution time for the jobs and schedules them using `gue` Jobs that are being handled by the `gue` workers. Scheduler
 controls that the jobs will be scheduled only once, even if it runs on several instances.
 
