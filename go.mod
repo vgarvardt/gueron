@@ -7,9 +7,9 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.8.0
-	github.com/vgarvardt/gue/v4 v4.0.0-beta.1
-	go.opentelemetry.io/otel/metric v0.31.0
-	go.uber.org/zap v1.21.0
+	github.com/vgarvardt/gue/v4 v4.0.0
+	go.opentelemetry.io/otel/metric v0.32.0
+	go.uber.org/zap v1.23.0
 )
 
 require (
@@ -21,19 +21,19 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.12.0 // indirect
-	github.com/jackc/pgx/v4 v4.17.0 // indirect
-	github.com/jackc/pgx/v5 v5.0.0-beta.1 // indirect
-	github.com/jackc/puddle v1.2.2-0.20220404125616-4e959849469a // indirect
-	github.com/jackc/puddle/v2 v2.0.0-beta.1 // indirect
-	github.com/lib/pq v1.10.6 // indirect
+	github.com/jackc/pgx/v4 v4.17.2 // indirect
+	github.com/jackc/pgx/v5 v5.0.0 // indirect
+	github.com/jackc/puddle v1.3.0 // indirect
+	github.com/jackc/puddle/v2 v2.0.0 // indirect
+	github.com/lib/pq v1.10.7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/vgarvardt/backoff v1.0.0 // indirect
-	go.opentelemetry.io/otel v1.9.0 // indirect
-	go.opentelemetry.io/otel/trace v1.9.0 // indirect
+	go.opentelemetry.io/otel v1.10.0 // indirect
+	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f // indirect
 	golang.org/x/text v0.3.7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
