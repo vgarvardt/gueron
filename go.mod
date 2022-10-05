@@ -7,7 +7,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.8.0
-	github.com/vgarvardt/gue/v4 v4.0.0
+	github.com/vgarvardt/gue/v4 v4.0.1
 	go.opentelemetry.io/otel/metric v0.32.1
 	go.uber.org/zap v1.23.0
 )
@@ -22,7 +22,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.12.0 // indirect
 	github.com/jackc/pgx/v4 v4.17.2 // indirect
-	github.com/jackc/pgx/v5 v5.0.0 // indirect
+	github.com/jackc/pgx/v5 v5.0.1 // indirect
 	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jackc/puddle/v2 v2.0.0 // indirect
 	github.com/lib/pq v1.10.7 // indirect
