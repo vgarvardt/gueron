@@ -1,13 +1,14 @@
 ---
-name: "PR Branch: Test"
+name: "Test"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
-  pull_request:
+  push:
     branches: [ master ]
+  pull_request:
 
 jobs:
   test:
@@ -30,5 +31,6 @@ jobs:
         uses: codecov/codecov-action@v3
         if: success()
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.txt
           fail_ci_if_error: false
