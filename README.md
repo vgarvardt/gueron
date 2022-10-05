@@ -60,6 +60,7 @@ import (
   "github.com/jackc/pgx/v5/pgxpool"
   "github.com/vgarvardt/gue/v4"
   "github.com/vgarvardt/gue/v4/adapter/pgxv5"
+  "github.com/vgarvardt/gueron"
 )
 
 func main() {
