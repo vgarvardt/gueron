@@ -2,7 +2,6 @@ package gueron
 
 import (
 	"context"
-	"crypto/md5"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -63,7 +62,7 @@ type Scheduler struct {
 // will be discarded immediately - this is how original cron works.
 func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) (*Scheduler, error) {
 	scheduler := Scheduler{
-		id:      newID(),
+		id:      gue.RandomStringID(),
 		parser:  cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
 		pool:    pool,
 		queue:   defaultQueueName,
@@ -90,11 +89,11 @@ func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) (*Scheduler, e
 }
 
 // Add adds new periodic task information to the Scheduler. Parameters are:
-//  - spec is the cron specification parsable by the github.com/robfig/cron/v3
-//  - jobType gue.Job Type value, make sure that gue.WorkerPool that will be handling jobs is aware of all the values
-//  - args is the gue.Job Args, can be used to pass some static parameters to the scheduled job, e.g. when the same
-//    job type is used in several crons and handler has some branching logic based on the arguments. Make sure this
-//    value is valid JSON as this is gue DB constraint
+//   - spec is the cron specification parsable by the github.com/robfig/cron/v3
+//   - jobType gue.Job Type value, make sure that gue.WorkerPool that will be handling jobs is aware of all the values
+//   - args is the gue.Job Args, can be used to pass some static parameters to the scheduled job, e.g. when the same
+//     job type is used in several crons and handler has some branching logic based on the arguments. Make sure this
+//     value is valid JSON as this is gue DB constraint
 func (s *Scheduler) Add(spec, jobType string, args []byte) (*Scheduler, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,9 +146,9 @@ func (s *Scheduler) jobsToSchedule(since time.Time) (jobs []gue.Job) {
 // Run blocks until all workers exit. Use context cancellation for shutdown.
 // WorkerMap parameter must have all the handlers that are going to handle cron jobs.
 // Note that some gue.WorkerPoolOption will be overridden by Scheduler, they are:
-//  - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
-//  - gue.WithPoolID - "gueron-<random-id>/pool" will be used
-//  - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
+//   - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
+//   - gue.WithPoolID - "gueron-<random-id>/pool" will be used
+//   - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
 func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, options ...gue.WorkerPoolOption) error {
 	s.mu.Lock()
 	if s.running {
@@ -368,7 +367,7 @@ func (s *Scheduler) schedulesHash() string {
 func (s *Scheduler) advisoryLock() string {
 	// inspired by https://pkg.go.dev/github.com/golang-migrate/migrate/v4@v4.15.2/database#GenerateAdvisoryLockId
 	sum := crc32.ChecksumIEEE([]byte("gueron-lock"))
-	sum = sum * uint32(idSalt)
+	sum *= uint32(idSalt)
 	return fmt.Sprint(sum)
 }
 
@@ -410,9 +409,4 @@ func (s *Scheduler) unlockDB(ctx context.Context) (err error) {
 
 	s.conn = nil
 	return nil
-}
-
-func newID() string {
-	hash := md5.Sum([]byte(time.Now().Format(time.RFC3339Nano)))
-	return hex.EncodeToString(hash[:])[:6]
 }
