@@ -367,7 +367,7 @@ func (s *Scheduler) schedulesHash() string {
 func (s *Scheduler) advisoryLock() string {
 	// inspired by https://pkg.go.dev/github.com/golang-migrate/migrate/v4@v4.15.2/database#GenerateAdvisoryLockId
 	sum := crc32.ChecksumIEEE([]byte("gueron-lock"))
-	sum = sum * uint32(idSalt)
+	sum *= uint32(idSalt)
 	return fmt.Sprint(sum)
 }
 
