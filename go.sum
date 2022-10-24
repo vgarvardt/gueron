@@ -62,8 +62,8 @@ github.com/jackc/pgx/v4 v4.0.0-pre1.0.20190824185557-6972a5742186/go.mod h1:X+GQ
 github.com/jackc/pgx/v4 v4.12.1-0.20210724153913-640aa07df17c/go.mod h1:1QD0+tgSXP7iUjYm9C1NxKhny7lq6ee99u/z+IHFcgs=
 github.com/jackc/pgx/v4 v4.17.2 h1:0Ut0rpeKwvIVbMQ1KbMBU4h6wxehBI535LK6Flheh8E=
 github.com/jackc/pgx/v4 v4.17.2/go.mod h1:lcxIZN44yMIrWI78a5CpucdD14hX0SBDbNRvjDBItsw=
-github.com/jackc/pgx/v5 v5.0.1 h1:JZu9othr7l8so2JMDAGeDUMXqERAuZpovyfl4H50tdg=
-github.com/jackc/pgx/v5 v5.0.1/go.mod h1:JBbvW3Hdw77jKl9uJrEDATUZIFM2VFPzRq4RWIhkF4o=
+github.com/jackc/pgx/v5 v5.0.3 h1:4flM5ecR/555F0EcnjdaZa6MhBU+nr0QbZIo5vaKjuM=
+github.com/jackc/pgx/v5 v5.0.3/go.mod h1:JBbvW3Hdw77jKl9uJrEDATUZIFM2VFPzRq4RWIhkF4o=
 github.com/jackc/puddle v0.0.0-20190413234325-e4ced69a3a2b/go.mod h1:m4B5Dj62Y0fbyuIc15OsIqK0+JU8nkqQjsgx7dvjSWk=
 github.com/jackc/puddle v0.0.0-20190608224051-11cab39313c9/go.mod h1:m4B5Dj62Y0fbyuIc15OsIqK0+JU8nkqQjsgx7dvjSWk=
 github.com/jackc/puddle v1.1.3/go.mod h1:m4B5Dj62Y0fbyuIc15OsIqK0+JU8nkqQjsgx7dvjSWk=
@@ -127,8 +127,8 @@ github.com/stretchr/testify v1.8.0 h1:pSgiaMZlXftHpm5L7V1+rVB+AZJydKsMxsQBIJw4PK
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/vgarvardt/backoff v1.0.0 h1:VKub60RkA/po0gz0fHsr1vWb6pbyvOQpOs/4Ciw4atM=
 github.com/vgarvardt/backoff v1.0.0/go.mod h1:Om8PDVpm4MpRNDg/IKpJWsvS2MabY7LtwSahd09zg8E=
-github.com/vgarvardt/gue/v4 v4.0.1 h1:gYOFSjof1vGZz2WWdjw6UOpqXqS0uQSzqJFTnHxs2Og=
-github.com/vgarvardt/gue/v4 v4.0.1/go.mod h1:4vgO5KLSGTIgMfJA3qzypUbBKK8cwI5PAzw3m+W/mxA=
+github.com/vgarvardt/gue/v4 v4.1.0 h1:JmUFWN+mICtHXycTob1opKELcWJ3wtdtTJScxmvrS58=
+github.com/vgarvardt/gue/v4 v4.1.0/go.mod h1:ZfltaLRfzOcFrg4/FWQWFG2nfEeqmyEoENV5T2Htsi0=
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 go.opentelemetry.io/otel v1.11.1 h1:4WLLAmcfkmDk2ukNXJyq3/kiz/3UzCaYq6PskJsaou4=
 go.opentelemetry.io/otel v1.11.1/go.mod h1:1nNhXBbWSD0nsL38H6btgnFN2k4i0sNLHNNMZMSbUGE=
