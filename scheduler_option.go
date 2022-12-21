@@ -3,7 +3,7 @@ package gueron
 import (
 	"time"
 
-	"github.com/vgarvardt/gue/v4/adapter"
+	"github.com/vgarvardt/gue/v5/adapter"
 	"go.opentelemetry.io/otel/metric"
 )
 

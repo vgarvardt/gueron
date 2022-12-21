@@ -15,10 +15,10 @@ be scheduled if it is critical to handle jobs ASAP and avoid delayed execution.
 ## Install
 
 ```shell
-go get -u github.com/vgarvardt/gueron
+go get -u github.com/vgarvardt/gueron/v2
 ```
 
-Additionally, you need to apply [DB migration](./schema.sql) (includes `gue` migration as well).
+Additionally, you need to apply [DB migration](migrations/schema.sql) (includes `gue` migration as well).
 
 ## Scheduler format
 
@@ -58,8 +58,8 @@ import (
   "syscall"
 
   "github.com/jackc/pgx/v5/pgxpool"
-  "github.com/vgarvardt/gue/v4"
-  "github.com/vgarvardt/gue/v4/adapter/pgxv5"
+  "github.com/vgarvardt/gue/v5"
+  "github.com/vgarvardt/gue/v5/adapter/pgxv5"
   "github.com/vgarvardt/gueron"
 )
 

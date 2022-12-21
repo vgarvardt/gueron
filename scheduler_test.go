@@ -9,10 +9,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vgarvardt/gue/v4"
-	"github.com/vgarvardt/gue/v4/adapter"
-	dbTest "github.com/vgarvardt/gue/v4/adapter/testing"
-	"github.com/vgarvardt/gue/v4/adapter/zap"
+	"github.com/vgarvardt/gue/v5"
+	"github.com/vgarvardt/gue/v5/adapter"
+	dbTest "github.com/vgarvardt/gue/v5/adapter/testing"
+	"github.com/vgarvardt/gue/v5/adapter/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -141,7 +141,7 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	err = tx2.Commit(ctx)
 	require.NoError(t, err)
 
-	err = jLocked.Error(ctx, "discard a job")
+	err = jLocked.Error(ctx, errors.New("discard a job"))
 	require.NoError(t, err)
 
 	jLockedAgain, err := s.gueClient.LockJobByID(ctx, j2.ID)
