@@ -15,8 +15,8 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/jmoiron/sqlx"
 	"github.com/robfig/cron/v3"
-	"github.com/vgarvardt/gue/v4"
-	"github.com/vgarvardt/gue/v4/adapter"
+	"github.com/vgarvardt/gue/v5"
+	"github.com/vgarvardt/gue/v5/adapter"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -311,9 +311,9 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 		return fmt.Errorf("could not query the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
 	}
 
-	var jobIDs []int64
+	var jobIDs []string
 	for rows.Next() {
-		var id int64
+		var id string
 		if err := rows.Scan(&id); err != nil {
 			rbErr := tx.Rollback(ctx)
 			return fmt.Errorf("could not get the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)

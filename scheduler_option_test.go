@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	dbTest "github.com/vgarvardt/gue/v4/adapter/testing"
-	"github.com/vgarvardt/gue/v4/adapter/zap"
+	dbTest "github.com/vgarvardt/gue/v5/adapter/testing"
+	"github.com/vgarvardt/gue/v5/adapter/zap"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap/zaptest"
 )
