@@ -47,3 +47,15 @@ func TestWithMeter(t *testing.T) {
 
 	assert.Equal(t, customMeter, s.meter)
 }
+
+func TestWithPollInterval(t *testing.T) {
+	connPool := new(dbTest.ConnPool)
+
+	defaultInterval, err := NewScheduler(connPool)
+	require.NoError(t, err)
+	assert.Equal(t, defaultPollInterval, defaultInterval.interval)
+
+	customInterval, err := NewScheduler(connPool, WithPollInterval(time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, time.Hour, customInterval.interval)
+}
