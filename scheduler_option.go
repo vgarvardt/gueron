@@ -17,6 +17,13 @@ func WithQueueName(qName string) SchedulerOption {
 	}
 }
 
+// WithPollInterval sets custom scheduler jobs poll interval.
+func WithPollInterval(d time.Duration) SchedulerOption {
+	return func(s *Scheduler) {
+		s.interval = d
+	}
+}
+
 // WithLogger sets logger that will be used both for scheduler and gue.Client log
 func WithLogger(logger adapter.Logger) SchedulerOption {
 	return func(s *Scheduler) {

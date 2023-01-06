@@ -28,13 +28,16 @@ func TestNewScheduler(t *testing.T) {
 
 	now := time.Date(2022, 5, 8, 21, 27, 3, 0, time.UTC)
 	jobs := s.jobsToSchedule(now)
-	require.Len(t, jobs, 13)
+	// 13 jobs should be scheduled, but 14 will be scheduled because "21:27:03" will turn into "21:26:58"
+	// because of the interval correction in scheduler, so one additional "bar" job will be scheduled at "21:27:00"
+	require.Len(t, jobs, 14)
 
 	assert.Equal(t, "foo", jobs[0].Type)
 	assert.Equal(t, "foo", jobs[9].Type)
 	assert.Equal(t, "bar", jobs[10].Type)
 	assert.Equal(t, "bar", jobs[11].Type)
 	assert.Equal(t, "bar", jobs[12].Type)
+	assert.Equal(t, "bar", jobs[13].Type)
 
 	assert.Equal(t, []byte(nil), jobs[0].Args)
 	assert.Equal(t, []byte(`qwe`), jobs[10].Args)
@@ -195,7 +198,9 @@ func Test_scheduleJobs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, jobs, 3)
 	assert.Len(t, jobs["foo"], 10)
-	assert.Len(t, jobs["bar"], 3)
+	// 3 jobs should be scheduled, but 4 will be scheduled because "21:27:03" will turn into "21:26:58"
+	// because of the interval correction in scheduler, so one additional "bar" job will be scheduled at "21:27:00"
+	assert.Len(t, jobs["bar"], 4)
 	assert.Len(t, jobs[schedulerJobType], 1)
 }
 

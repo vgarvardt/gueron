@@ -26,8 +26,9 @@ const (
 
 	schedulerJobType = "gueron-refresh-schedule"
 
-	defaultQueueName = "gueron"
-	defaultHorizon   = 3 * time.Hour
+	defaultQueueName    = "gueron"
+	defaultHorizon      = 3 * time.Hour
+	defaultPollInterval = 5 * time.Second
 )
 
 type schedule struct {
@@ -48,6 +49,8 @@ type Scheduler struct {
 	pool      adapter.ConnPool
 	schedules []schedule
 	queue     string
+	interval  time.Duration
+
 	logger    adapter.Logger
 	gueClient *gue.Client
 	horizon   time.Duration
@@ -62,14 +65,15 @@ type Scheduler struct {
 // will be discarded immediately - this is how original cron works.
 func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) (*Scheduler, error) {
 	scheduler := Scheduler{
-		id:      gue.RandomStringID(),
-		parser:  cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
-		pool:    pool,
-		queue:   defaultQueueName,
-		logger:  adapter.NoOpLogger{},
-		horizon: defaultHorizon,
-		clock:   clock.New(),
-		meter:   metric.NewNoopMeterProvider().Meter("noop"),
+		id:       gue.RandomStringID(),
+		parser:   cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
+		pool:     pool,
+		queue:    defaultQueueName,
+		interval: defaultPollInterval,
+		logger:   adapter.NoOpLogger{},
+		horizon:  defaultHorizon,
+		clock:    clock.New(),
+		meter:    metric.NewNoopMeterProvider().Meter("noop"),
 	}
 
 	for _, o := range opts {
@@ -124,7 +128,11 @@ func (s *Scheduler) jobsToSchedule(since time.Time) (jobs []gue.Job) {
 
 	until := since.Add(s.horizon)
 	for _, ss := range s.schedules {
-		for now := since; ; {
+		// We're starting schedule process earlier, because we may get into situation when refresh job and scheduled
+		// job are ment to run at the same time, but refresh job has higher priority, runs first, puts a global lock,
+		// so that scheduled job can not be executed and is cleaned up. To avoid this - we're starting scheduling jobs a
+		// bit earlier to restore them.
+		for now := since.Add(-s.interval); ; {
 			nextAt := ss.Next(now)
 			if nextAt.After(until) {
 				break
@@ -149,6 +157,7 @@ func (s *Scheduler) jobsToSchedule(since time.Time) (jobs []gue.Job) {
 //   - gue.WithPoolQueue - Scheduler queue will be set, use WithQueueName if you need to customise it
 //   - gue.WithPoolID - "gueron-<random-id>/pool" will be used
 //   - gue.WithPoolLogger - Scheduler logger will be set, use WithLogger if you need to customise it
+//   - gue.WithPoolPollInterval - Scheduler poll interval will be set, use WithPollInterval if you need to customise it
 func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, options ...gue.WorkerPoolOption) error {
 	s.mu.Lock()
 	if s.running {
@@ -169,6 +178,7 @@ func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, optio
 		gue.WithPoolQueue(s.queue),
 		gue.WithPoolID(fmt.Sprintf("gueron-%s/pool", s.id)),
 		gue.WithPoolLogger(s.logger),
+		gue.WithPoolPollInterval(s.interval),
 	)
 
 	for i := range s.schedules {
@@ -255,7 +265,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) erro
 		return err
 	}
 
-	// Generate list of new jobs to schedule and enqueue them
+	// Generate list of new jobs to schedule and enqueue them.
 	now := s.clock.Now()
 	jobsToSchedule := s.jobsToSchedule(now)
 	for i := range jobsToSchedule {
