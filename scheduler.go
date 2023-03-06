@@ -239,7 +239,7 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 	}
 
 	if qErr != nil && qErr != adapter.ErrNoRows {
-		err = fmt.Errorf("could not get information about scheduled jobs: %w", err)
+		err = fmt.Errorf("could not get information about scheduled jobs: %w", qErr)
 		return
 	}
 
