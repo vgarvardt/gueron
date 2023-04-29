@@ -47,6 +47,10 @@ ignore = parsing
 ## Allow fix to run on files, even if they contain parsing errors
 ## Note altering this is NOT RECOMMENDED as can corrupt SQL
 #fix_even_unparsable = False
+# Max line length is set by default to be in line with the dbt style guide.
+# https://github.com/dbt-labs/corp/blob/main/dbt_style_guide.md
+# Set to zero or negative to disable checks.
+max_line_length = 120
 
 [sqlfluff:indentation]
 ## See https://docs.sqlfluff.com/en/stable/indentation.html
@@ -64,7 +68,6 @@ ignore = parsing
 ## Some rules can be configured directly from the config common to other rules
 [sqlfluff:rules]
 #tab_space_size = 4
-max_line_length = 120
 #indent_unit = space
 #comma_style = trailing
 #allow_scalar = True
