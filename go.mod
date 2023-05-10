@@ -3,7 +3,7 @@ module github.com/vgarvardt/gueron/v2
 go 1.19
 
 require (
-	github.com/benbjohnson/clock v1.3.3
+	github.com/benbjohnson/clock v1.3.4
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.8.2
