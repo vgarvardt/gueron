@@ -6,7 +6,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/vgarvardt/gue/v5 v5.2.1
 	go.opentelemetry.io/otel/metric v1.16.0
 	go.uber.org/zap v1.24.0
