@@ -49,6 +49,7 @@ type Scheduler struct {
 	parser    cron.Parser
 	pool      adapter.ConnPool
 	schedules []schedule
+	jobTypes  []string
 	queue     string
 	interval  time.Duration
 
@@ -109,6 +110,7 @@ func (s *Scheduler) Add(spec, jobType string, args []byte) (*Scheduler, error) {
 	}
 
 	s.schedules = append(s.schedules, schedule{sch, spec, jobType, args})
+	s.jobTypes = append(s.jobTypes, jobType)
 
 	return s, err
 }
@@ -314,9 +316,18 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 		s.logger.Debug("Finished leftovers cleanup")
 	}()
 
-	// it seems that DELETE FROM ... WHERE job_id = ANY(ARRAY(SELECT job_id FROM ... FOR UPDATE SKIP LOCKED))
-	// does not work, so doing it in two steps - select with FOR UPDATE SKIP LOCKED and then DELETE by IDs
-	rows, err := tx.Query(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 FOR UPDATE SKIP LOCKED`, s.queue)
+	// It seems that DELETE FROM ... WHERE job_id = ANY(ARRAY(SELECT job_id FROM ... FOR UPDATE SKIP LOCKED))
+	// does not work, so doing it in two steps - select with FOR UPDATE SKIP LOCKED and then DELETE by IDs.
+	//
+	// Queue can be used not only for gueron jobs but also for regular scheduled jobs - avoid removing them,
+	// use job_type filter to clean up only jobs that belong to gueron.
+	query, args, err := sqlx.In(`SELECT job_id FROM gue_jobs WHERE queue = ? AND job_type IN (?) FOR UPDATE SKIP LOCKED`, s.queue, s.jobTypes)
+	if err != nil {
+		rbErr := tx.Rollback(ctx)
+		return fmt.Errorf("could not build query to get the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
+	}
+
+	rows, err := tx.Query(ctx, sqlx.Rebind(sqlx.BindType("postgres"), query), args...)
 	if err != nil {
 		rbErr := tx.Rollback(ctx)
 		return fmt.Errorf("could not query the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
@@ -343,7 +354,7 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 		return nil
 	}
 
-	query, args, err := sqlx.In(`DELETE FROM gue_jobs WHERE job_id IN (?)`, jobIDs)
+	query, args, err = sqlx.In(`DELETE FROM gue_jobs WHERE job_id IN (?)`, jobIDs)
 	if err != nil {
 		rbErr := tx.Rollback(ctx)
 		return fmt.Errorf("could not build delete query for already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
