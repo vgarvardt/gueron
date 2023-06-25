@@ -103,6 +103,11 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	s, err := NewScheduler(pool, WithLogger(logger), WithQueueName(queue))
 	require.NoError(t, err)
 
+	// scheduled jobs list is never empty - at least refresh job is scheduled by default,
+	// but in this test we do not have any, so query builder fails with empty IN,
+	// to fix this - schedule dummy job
+	s.MustAdd("@every 12h", "dummy-job", nil)
+
 	// no jobs yet, nothing to clean up
 	tx1, err := pool.Begin(ctx)
 	require.NoError(t, err)
@@ -117,6 +122,8 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	j1 := gue.Job{Queue: queue, RunAt: now, Type: "test"}
 	j2 := gue.Job{Queue: queue, RunAt: now, Type: "test"}
 	j3 := gue.Job{Queue: queue, RunAt: now, Type: "test"}
+	// only this job supposed to be removed by the cleanup run
+	j4 := gue.Job{Queue: queue, RunAt: now, Type: "dummy-job"}
 
 	err = s.gueClient.Enqueue(ctx, &j1)
 	require.NoError(t, err)
@@ -129,6 +136,10 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	err = s.gueClient.Enqueue(ctx, &j3)
 	require.NoError(t, err)
 	require.NotEmpty(t, j3.ID)
+
+	err = s.gueClient.Enqueue(ctx, &j4)
+	require.NoError(t, err)
+	require.NotEmpty(t, j4.ID)
 
 	// lock a job as if it is running and call clean up
 	jLocked, err := s.gueClient.LockJobByID(ctx, j2.ID)
@@ -144,13 +155,26 @@ func Test_cleanupScheduledLeftovers(t *testing.T) {
 	err = tx2.Commit(ctx)
 	require.NoError(t, err)
 
-	err = jLocked.Error(ctx, errors.New("discard a job"))
+	err = jLocked.Error(ctx, gue.ErrDiscardJob("test"))
 	require.NoError(t, err)
 
 	jLockedAgain, err := s.gueClient.LockJobByID(ctx, j2.ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, adapter.ErrNoRows))
 	assert.Nil(t, jLockedAgain)
+
+	// j3 should be still available as it is not gueron job
+	jLockNonGueronJob, err := s.gueClient.LockJobByID(ctx, j3.ID)
+	require.NoError(t, err)
+	assert.Equal(t, j3.ID, jLockNonGueronJob.ID)
+
+	err = jLockNonGueronJob.Error(ctx, gue.ErrDiscardJob("test"))
+	require.NoError(t, err)
+
+	jLockGueronJob, err := s.gueClient.LockJobByID(ctx, j4.ID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, adapter.ErrNoRows))
+	assert.Nil(t, jLockGueronJob)
 }
 
 func Test_scheduleJobs(t *testing.T) {
