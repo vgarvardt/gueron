@@ -197,6 +197,7 @@ func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, optio
 
 	// special job that will refresh schedules
 	wm[schedulerJobType] = s.refreshScheduleJob
+	s.jobTypes = append(s.jobTypes, schedulerJobType)
 
 	wp, err := gue.NewWorkerPool(s.gueClient, wm, poolSize, options...)
 	if err != nil {
