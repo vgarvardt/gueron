@@ -25,7 +25,7 @@ const (
 	// https://xkcd.com/221/
 	idSalt uint = 277883430
 
-	schedulerJobType = "gueron-refresh-schedule"
+	refreshScheduleJobType = "gueron-refresh-schedule"
 
 	defaultQueueName    = "gueron"
 	defaultHorizon      = 3 * time.Hour
@@ -196,8 +196,8 @@ func (s *Scheduler) Run(ctx context.Context, wm gue.WorkMap, poolSize int, optio
 	}
 
 	// special job that will refresh schedules
-	wm[schedulerJobType] = s.refreshScheduleJob
-	s.jobTypes = append(s.jobTypes, schedulerJobType)
+	wm[refreshScheduleJobType] = s.refreshScheduleJob
+	s.jobTypes = append(s.jobTypes, refreshScheduleJobType)
 
 	wp, err := gue.NewWorkerPool(s.gueClient, wm, poolSize, options...)
 	if err != nil {
@@ -228,6 +228,7 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 	}()
 
 	schedulesHash := s.schedulesHash()
+	s.logger.Info("Refreshing jobs schedule", adapter.F("force", force), adapter.F("schedules-hash", schedulesHash))
 	if force {
 		if sErr := s.scheduleJobs(ctx, schedulesHash); sErr != nil {
 			err = fmt.Errorf("could not schedule jobs: %w", sErr)
@@ -237,17 +238,31 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 
 	var hash string
 	qErr := s.pool.QueryRow(ctx, `SELECT hash FROM gueron_meta WHERE queue = $1`, s.queue).Scan(&hash)
+	s.logger.Info("Checking current scheduler hash", adapter.Err(err), adapter.F("current-hash", hash))
 	if qErr == nil && hash == schedulesHash {
-		// jobs already scheduled and there is no need to force refresh them, so
+		// jobs should be already scheduled and there is no need to force refresh them, but once there was an issue
+		// when scheduler broke because at this point refresh job was missing, so at some point it stopped
+		// refreshing and all teh processes were stuck because of, so ensure we have refresh job here as well
+		var schedulerJobID string
+		jErr := s.pool.QueryRow(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 AND job_type = $2`, s.queue, refreshScheduleJobType).Scan(&schedulerJobID)
+		if errors.Is(jErr, adapter.ErrNoRows) {
+			s.logger.Info("Could not find scheduled refresh job, so forcing refresh")
+			if sErr := s.scheduleJobs(ctx, schedulesHash); sErr != nil {
+				err = fmt.Errorf("could not schedule jobs: %w", sErr)
+				return
+			}
+		}
+
 		return
 	}
 
-	if qErr != nil && qErr != adapter.ErrNoRows {
+	if qErr != nil && !errors.Is(qErr, adapter.ErrNoRows) {
 		err = fmt.Errorf("could not get information about scheduled jobs: %w", qErr)
 		return
 	}
 
-	if qErr == adapter.ErrNoRows || hash != schedulesHash {
+	if errors.Is(qErr, adapter.ErrNoRows) || hash != schedulesHash {
+		s.logger.Info("Either no schedule, or schedule change found, so refreshing jobs")
 		if sErr := s.scheduleJobs(ctx, schedulesHash); sErr != nil {
 			err = fmt.Errorf("could not schedule jobs: %w", sErr)
 			return
@@ -284,7 +299,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) erro
 	refreshJob := gue.Job{
 		Queue:    s.queue,
 		Priority: gue.JobPriorityHighest,
-		Type:     schedulerJobType,
+		Type:     refreshScheduleJobType,
 		// There is possibility that some scheduled jobs will be discarded when there are many jobs scheduled right on
 		// the horizon time and there are not enough workers to pick all of them together with this one, so that this
 		// one will run first because of the highest priority and will discard non-started scheduled jobs. If this will
