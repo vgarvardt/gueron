@@ -225,7 +225,7 @@ func Test_scheduleJobs(t *testing.T) {
 	// 3 jobs should be scheduled, but 4 will be scheduled because "21:27:03" will turn into "21:26:58"
 	// because of the interval correction in scheduler, so one additional "bar" job will be scheduled at "21:27:00"
 	assert.Len(t, jobs["bar"], 4)
-	assert.Len(t, jobs[schedulerJobType], 1)
+	assert.Len(t, jobs[refreshScheduleJobType], 1)
 }
 
 func Test_refreshSchedule(t *testing.T) {
