@@ -220,7 +220,7 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 	defer func() {
 		if err != nil {
 			if rErr := tx.Rollback(ctx); rErr != nil {
-				err = errors.Join(err, fmt.Errorf("could not rollback failed transaction: %w", rErr))
+				s.logger.Error("Could not rollback failed transaction", adapter.Err(rErr))
 			}
 			return
 		}
