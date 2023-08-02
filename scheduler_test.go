@@ -199,8 +199,14 @@ func Test_scheduleJobs(t *testing.T) {
 	now := time.Date(2022, 5, 8, 21, 27, 3, 0, time.UTC)
 	clk.Set(now)
 
+	tx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+
 	schedulesHash := s.schedulesHash()
-	err = s.scheduleJobs(ctx, schedulesHash)
+	err = s.scheduleJobs(ctx, schedulesHash, tx)
+	require.NoError(t, err)
+
+	err = tx.Commit(ctx)
 	require.NoError(t, err)
 
 	rows, err := pool.Query(ctx, `SELECT job_type, run_at FROM gue_jobs WHERE queue = $1 ORDER BY run_at ASC`, queue)
