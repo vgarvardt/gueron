@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash/crc32"
 	"sort"
 	"strings"
 	"sync"
@@ -22,9 +21,6 @@ import (
 )
 
 const (
-	// https://xkcd.com/221/
-	idSalt uint = 277883430
-
 	refreshScheduleJobType = "gueron-refresh-schedule"
 
 	defaultQueueName    = "gueron"
@@ -212,72 +208,61 @@ func (s *Scheduler) refreshScheduleJob(ctx context.Context, _ *gue.Job) error {
 }
 
 func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error) {
-	if lockErr := s.lockDB(ctx); lockErr != nil {
-		err = fmt.Errorf("could not acqure scheduler lock: %w", lockErr)
-		return
-	}
-	defer func() {
-		if lockErr := s.unlockDB(ctx); lockErr != nil {
-			if err != nil {
-				err = fmt.Errorf("%s; and could not release scheduler lock: %w", err.Error(), lockErr)
-				return
-			}
-			err = fmt.Errorf("could not release scheduler lock: %w", lockErr)
-			return
-		}
-	}()
-
-	schedulesHash := s.schedulesHash()
-	s.logger.Info("Refreshing jobs schedule", adapter.F("force", force), adapter.F("schedules-hash", schedulesHash))
-	if force {
-		if sErr := s.scheduleJobs(ctx, schedulesHash); sErr != nil {
-			err = fmt.Errorf("could not schedule jobs: %w", sErr)
-		}
-		return
+	// ensure we have a record about this queron instance in the meta as we're going to use it as a lock
+	if _, err := s.pool.Exec(ctx, "INSERT INTO gueron_meta (queue, hash, scheduled_at, horizon_at) VALUES ($1, '', now(), now()) ON CONFLICT (queue) DO NOTHING", s.queue); err != nil {
+		return fmt.Errorf("could not init schedule meta: %w", err)
 	}
 
-	var hash string
-	qErr := s.pool.QueryRow(ctx, `SELECT hash FROM gueron_meta WHERE queue = $1`, s.queue).Scan(&hash)
-	s.logger.Info("Checking current scheduler hash", adapter.Err(err), adapter.F("current-hash", hash))
-	if qErr == nil && hash == schedulesHash {
-		// jobs should be already scheduled and there is no need to force refresh them, but once there was an issue
-		// when scheduler broke because at this point refresh job was missing, so at some point it stopped
-		// refreshing and all teh processes were stuck because of, so ensure we have refresh job here as well
-		var schedulerJobID string
-		jErr := s.pool.QueryRow(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 AND job_type = $2`, s.queue, refreshScheduleJobType).Scan(&schedulerJobID)
-		if errors.Is(jErr, adapter.ErrNoRows) {
-			s.logger.Info("Could not find scheduled refresh job, so forcing refresh")
-			if sErr := s.scheduleJobs(ctx, schedulesHash); sErr != nil {
-				err = fmt.Errorf("could not schedule jobs: %w", sErr)
-				return
-			}
-		}
-
-		return
-	}
-
-	if qErr != nil && !errors.Is(qErr, adapter.ErrNoRows) {
-		err = fmt.Errorf("could not get information about scheduled jobs: %w", qErr)
-		return
-	}
-
-	if errors.Is(qErr, adapter.ErrNoRows) || hash != schedulesHash {
-		s.logger.Info("Either no schedule, or schedule change found, so refreshing jobs")
-		if sErr := s.scheduleJobs(ctx, schedulesHash); sErr != nil {
-			err = fmt.Errorf("could not schedule jobs: %w", sErr)
-			return
-		}
-	}
-
-	return nil
-}
-
-func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("could not start transaction: %w", err)
 	}
+	defer func() {
+		if err != nil {
+			if rErr := tx.Rollback(ctx); rErr != nil {
+				s.logger.Error("Could not rollback failed transaction", adapter.Err(rErr))
+			}
+			return
+		}
 
+		err = tx.Commit(ctx)
+	}()
+
+	schedulesHash := s.schedulesHash()
+
+	// lock the record to make sure only one instance is updating the schedule
+	var currentHash string
+	qErr := tx.QueryRow(ctx, `SELECT hash FROM gueron_meta WHERE queue = $1 FOR UPDATE`, s.queue).Scan(&currentHash)
+	if qErr != nil {
+		err = fmt.Errorf("could not get information about scheduled jobs: %w", qErr)
+		return
+	}
+
+	s.logger.Info("Refreshing jobs schedule", adapter.F("force", force), adapter.F("schedules-hash", schedulesHash), adapter.F("current-hash", currentHash))
+	if force || currentHash != schedulesHash {
+		if sErr := s.scheduleJobs(ctx, schedulesHash, tx); sErr != nil {
+			err = fmt.Errorf("could not schedule jobs: %w", sErr)
+		}
+		return
+	}
+
+	// jobs should be already scheduled and there is no need to force refresh them, but once there was an issue
+	// when scheduler broke because at this point refresh job was missing, so at some point it stopped
+	// refreshing and all teh processes were stuck because of, so ensure we have refresh job here as well
+	var schedulerJobID string
+	jErr := tx.QueryRow(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 AND job_type = $2`, s.queue, refreshScheduleJobType).Scan(&schedulerJobID)
+	if errors.Is(jErr, adapter.ErrNoRows) {
+		s.logger.Info("Could not find scheduled refresh job, so forcing refresh")
+		if sErr := s.scheduleJobs(ctx, schedulesHash, tx); sErr != nil {
+			err = fmt.Errorf("could not schedule jobs: %w", sErr)
+			return
+		}
+	}
+
+	return
+}
+
+func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx adapter.Tx) error {
 	// Cleanup existing gue jobs - there can be some leftovers, e.g. jobs that are not required to run anymore,
 	// but are still scheduled.
 	if err := s.cleanupScheduledLeftovers(ctx, tx); err != nil {
@@ -290,8 +275,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) erro
 	for i := range jobsToSchedule {
 		if err := s.gueClient.EnqueueTx(ctx, &jobsToSchedule[i], tx); err != nil {
 			s.logger.Error("Could not enqueue a job", adapter.Err(err), adapter.F("job", &jobsToSchedule[i]))
-			rbErr := tx.Rollback(ctx)
-			return fmt.Errorf("could not enqueue a job (rb: %v): %w", rbErr, err)
+			return fmt.Errorf("could not enqueue a job: %w", err)
 		}
 	}
 
@@ -309,8 +293,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string) erro
 	}
 	if err := s.gueClient.EnqueueTx(ctx, &refreshJob, tx); err != nil {
 		s.logger.Error("Could not enqueue refresh job", adapter.Err(err), adapter.F("job", &refreshJob))
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("could not enqueue refresh job (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("could not enqueue refresh job: %w", err)
 	}
 
 	// Update metadata info
@@ -319,11 +302,10 @@ INSERT INTO gueron_meta (queue, hash, scheduled_at, horizon_at) VALUES ($1, $2, 
 ON CONFLICT (queue) DO UPDATE SET hash = $2, scheduled_at = $3, horizon_at = $4`,
 		s.queue, schedulesHash, now, horizonAt,
 	); err != nil {
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("could not update gueron meta for scheduled jobs (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("could not update gueron meta for scheduled jobs: %w", err)
 	}
 
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx) error {
@@ -339,30 +321,26 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 	// use job_type filter to clean up only jobs that belong to gueron.
 	query, args, err := sqlx.In(`SELECT job_id FROM gue_jobs WHERE queue = ? AND job_type IN (?) FOR UPDATE SKIP LOCKED`, s.queue, s.jobTypes)
 	if err != nil {
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("could not build query to get the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("could not build query to get the list of already scheduled jobs to clean them up: %w", err)
 	}
 
 	rows, err := tx.Query(ctx, sqlx.Rebind(sqlx.BindType("postgres"), query), args...)
 	if err != nil {
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("could not query the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("could not query the list of already scheduled jobs to clean them up: %w", err)
 	}
 
 	var jobIDs []string
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			rbErr := tx.Rollback(ctx)
-			return fmt.Errorf("could not get the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
+			return fmt.Errorf("could not get the list of already scheduled jobs to clean them up: %w", err)
 		}
 
 		jobIDs = append(jobIDs, id)
 	}
 
 	if err := rows.Err(); err != nil {
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("something is wrong with the list of already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("something is wrong with the list of already scheduled jobs to clean them up: %w", err)
 	}
 
 	s.logger.Debug("Leftovers jobs found", adapter.F("count", len(jobIDs)))
@@ -372,14 +350,12 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 
 	query, args, err = sqlx.In(`DELETE FROM gue_jobs WHERE job_id IN (?)`, jobIDs)
 	if err != nil {
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("could not build delete query for already scheduled jobs to clean them up (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("could not build delete query for already scheduled jobs to clean them up: %w", err)
 	}
 
 	pgQuery := sqlx.Rebind(sqlx.BindType("postgres"), query)
 	if _, err := tx.Exec(ctx, pgQuery, args...); err != nil {
-		rbErr := tx.Rollback(ctx)
-		return fmt.Errorf("could not remove jobs by IDs (rb: %v): %w", rbErr, err)
+		return fmt.Errorf("could not remove jobs by IDs: %w", err)
 	}
 
 	return nil
@@ -400,51 +376,4 @@ func (s *Scheduler) schedulesHash() string {
 
 	hash := sha256.Sum256([]byte(strings.Join(schedules, "")))
 	return hex.EncodeToString(hash[:])[:12]
-}
-
-func (s *Scheduler) advisoryLock() string {
-	// inspired by https://pkg.go.dev/github.com/golang-migrate/migrate/v4@v4.15.2/database#GenerateAdvisoryLockId
-	sum := crc32.ChecksumIEEE([]byte("gueron-lock"))
-	sum *= uint32(idSalt)
-	return fmt.Sprint(sum)
-}
-
-func (s *Scheduler) lockDB(ctx context.Context) (err error) {
-	s.muc.Lock()
-	defer s.muc.Unlock()
-
-	if s.conn != nil {
-		return errors.New("it seems that the DB is already locked")
-	}
-
-	s.conn, err = s.pool.Acquire(ctx)
-	if err != nil {
-		return fmt.Errorf("could not acquire connection from a pool: %w", err)
-	}
-
-	if _, err := s.conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, s.advisoryLock()); err != nil {
-		return fmt.Errorf("could not acquire db lock: %w", err)
-	}
-
-	return nil
-}
-
-func (s *Scheduler) unlockDB(ctx context.Context) (err error) {
-	s.muc.Lock()
-	defer s.muc.Unlock()
-
-	if s.conn == nil {
-		return errors.New("it seems that the DB is not locked")
-	}
-
-	if _, err := s.conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, s.advisoryLock()); err != nil {
-		return fmt.Errorf("could not release db lock: %w", err)
-	}
-
-	if err := s.conn.Release(); err != nil {
-		return fmt.Errorf("could not release db connection: %w", err)
-	}
-
-	s.conn = nil
-	return nil
 }
