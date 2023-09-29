@@ -7,7 +7,7 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.8.4
-	github.com/vgarvardt/gue/v5 v5.4.0
+	github.com/vgarvardt/gue/v5 v5.5.0
 	go.opentelemetry.io/otel/metric v1.19.0
 	go.uber.org/zap v1.26.0
 )
