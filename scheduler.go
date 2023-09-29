@@ -53,9 +53,6 @@ type Scheduler struct {
 	gueClient *gue.Client
 	horizon   time.Duration
 	meter     metric.Meter
-
-	muc  sync.Mutex
-	conn adapter.Conn
 }
 
 // NewScheduler builds new Scheduler instance.
