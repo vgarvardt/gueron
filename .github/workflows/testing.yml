@@ -31,7 +31,7 @@ jobs:
         if: success()
         uses: codecov/codecov-action@v4
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODECOV_TOKEN: ${{secrets.CODECOV_TOKEN}}
         with:
           file: ./coverage.txt
           fail_ci_if_error: false
