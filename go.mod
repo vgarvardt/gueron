@@ -9,7 +9,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/vgarvardt/gue/v5 v5.6.0
 	go.opentelemetry.io/otel/metric v1.23.1
-	go.uber.org/zap v1.26.0
+	go.uber.org/zap v1.27.0
 )
 
 require (
