@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/benbjohnson/clock v1.3.5
-	github.com/jmoiron/sqlx v1.3.5
+	github.com/jmoiron/sqlx v1.4.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.9.0
 	github.com/vgarvardt/gue/v5 v5.6.1
