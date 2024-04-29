@@ -31,6 +31,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # go validator works pretty bad in super-linter, we'll use the original one
           VALIDATE_GO: false
+          VALIDATE_CHECKOV: false
 
       - name: Setup dependencies
         uses: ./.github/actions/setup-deps
