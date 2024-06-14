@@ -125,7 +125,7 @@ func (s *Scheduler) jobsToSchedule(since time.Time) (jobs []gue.Job) {
 	until := since.Add(s.horizon)
 	for _, ss := range s.schedules {
 		// We're starting schedule process earlier, because we may get into situation when refresh job and scheduled
-		// job are ment to run at the same time, but refresh job has higher priority, runs first, puts a global lock,
+		// job are meant to run at the same time, but refresh job has higher priority, runs first, puts a global lock,
 		// so that scheduled job can not be executed and is cleaned up. To avoid this - we're starting scheduling jobs a
 		// bit earlier to restore them.
 		for now := since.Add(-s.interval); ; {
@@ -310,6 +310,13 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 	defer func() {
 		s.logger.Debug("Finished leftovers cleanup")
 	}()
+
+	// it is possible that the scheduler is started w/out any registered jobs - this is fine and there is nothing
+	// to clean up
+	if len(s.jobTypes) == 0 {
+		s.logger.Debug("No job types registered, so no leftovers to clean up")
+		return nil
+	}
 
 	// It seems that DELETE FROM ... WHERE job_id = ANY(ARRAY(SELECT job_id FROM ... FOR UPDATE SKIP LOCKED))
 	// does not work, so doing it in two steps - select with FOR UPDATE SKIP LOCKED and then DELETE by IDs.
