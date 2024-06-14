@@ -245,7 +245,7 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 
 	// jobs should be already scheduled and there is no need to force refresh them, but once there was an issue
 	// when scheduler broke because at this point refresh job was missing, so at some point it stopped
-	// refreshing and all teh processes were stuck because of, so ensure we have refresh job here as well
+	// refreshing and all the processes were stuck because of, so ensure we have refresh job here as well
 	var schedulerJobID string
 	jErr := tx.QueryRow(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 AND job_type = $2`, s.queue, refreshScheduleJobType).Scan(&schedulerJobID)
 	if errors.Is(jErr, adapter.ErrNoRows) {
