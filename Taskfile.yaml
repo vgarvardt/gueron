@@ -1,5 +1,5 @@
 ---
-version: '3'
+version: "3"
 
 env:
   CGO_ENABLED: 0
@@ -37,7 +37,7 @@ tasks:
         # `docker compose port postgres 5432` -> "0.0.0.0:52041"
         sh: docker compose port postgres 5432 | cut -f2 -d":"
     env:
-      TEST_POSTGRES: 'postgres://test:test@localhost:{{.PG_PORT}}/test?sslmode=disable'
+      TEST_POSTGRES: "postgres://test:test@localhost:{{.PG_PORT}}/test?sslmode=disable"
 
   spell-lint:
     summary: Check spelling
