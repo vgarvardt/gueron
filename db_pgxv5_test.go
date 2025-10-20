@@ -73,7 +73,7 @@ func doApplyMigrations(t testing.TB, schema string) {
 		t.Logf("doApplyMigrations dsn: %s", dsn)
 	}
 
-	migrationsConn, err := sql.Open("postgres", dsn)
+	migrationsConn, err := sql.Open("pgx", dsn)
 	require.NoError(t, err)
 	defer func() {
 		err := migrationsConn.Close()

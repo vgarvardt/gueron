@@ -23,9 +23,9 @@ deps-down:
 # Run all tests (requires dependencies to be running)
 .PHONY: test-all
 test-all:
-	$(eval PG_PORT := $(shell docker compose port postgres 5432 | cut -f2 -d":"))
-	TEST_POSTGRES="postgres://test:test@localhost:$(PG_PORT)/test?sslmode=disable" \
-		go test -timeout 2m -cover -coverprofile=coverage.txt -covermode=atomic ./...
+	PG_HOST=$$(docker compose port postgres 5432) && \
+	TEST_POSTGRES="postgres://test:test@$$PG_HOST/test?sslmode=disable" \
+	go test -timeout 2m -cover -coverprofile=coverage.txt -covermode=atomic ./...
 
 # Check spelling
 .PHONY: spell-lint
