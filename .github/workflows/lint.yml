@@ -34,7 +34,6 @@ jobs:
           VALIDATE_CHECKOV: false
           # it forces all list items to be on a single line in .github/linters/.jscpd.json that is not pretty at all
           VALIDATE_JSON_PRETTIER: false
-          VALIDATE_MARKDOWN_PRETTIER: true
           # to see the problems right in the workflow output
           FIX_MARKDOWN_PRETTIER: true
 
