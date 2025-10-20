@@ -3,19 +3,21 @@ package gueron
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
+	"github.com/cappuccinotm/slogx"
 	"github.com/jmoiron/sqlx"
 	"github.com/robfig/cron/v3"
-	"github.com/vgarvardt/gue/v5"
-	"github.com/vgarvardt/gue/v5/adapter"
+	"github.com/vgarvardt/gue/v6"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 )
@@ -43,13 +45,13 @@ type Scheduler struct {
 	clock   clock.Clock
 
 	parser    cron.Parser
-	pool      adapter.ConnPool
+	pool      *sql.DB
 	schedules []schedule
 	jobTypes  []string
 	queue     string
 	interval  time.Duration
 
-	logger    adapter.Logger
+	logger    *slog.Logger
 	gueClient *gue.Client
 	horizon   time.Duration
 	meter     metric.Meter
@@ -58,14 +60,14 @@ type Scheduler struct {
 // NewScheduler builds new Scheduler instance.
 // Note that internally Scheduler uses gue.Client with the backoff set to gue.BackoffNever, so any errored job
 // will be discarded immediately - this is how original cron works.
-func NewScheduler(pool adapter.ConnPool, opts ...SchedulerOption) (*Scheduler, error) {
+func NewScheduler(db *sql.DB, opts ...SchedulerOption) (*Scheduler, error) {
 	scheduler := Scheduler{
 		id:       gue.RandomStringID(),
 		parser:   cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor),
-		pool:     pool,
+		pool:     db,
 		queue:    defaultQueueName,
 		interval: defaultPollInterval,
-		logger:   adapter.NoOpLogger{},
+		logger:   slog.New(slogx.NopHandler()),
 		horizon:  defaultHorizon,
 		clock:    clock.New(),
 		meter:    noop.NewMeterProvider().Meter("noop"),
@@ -206,36 +208,36 @@ func (s *Scheduler) refreshScheduleJob(ctx context.Context, _ *gue.Job) error {
 
 func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error) {
 	// ensure we have a record about this queron instance in the meta as we're going to use it as a lock
-	if _, err := s.pool.Exec(ctx, "INSERT INTO gueron_meta (queue, hash, scheduled_at, horizon_at) VALUES ($1, '', now(), now()) ON CONFLICT (queue) DO NOTHING", s.queue); err != nil {
+	if _, err := s.pool.ExecContext(ctx, "INSERT INTO gueron_meta (queue, hash, scheduled_at, horizon_at) VALUES ($1, '', now(), now()) ON CONFLICT (queue) DO NOTHING", s.queue); err != nil {
 		return fmt.Errorf("could not init schedule meta: %w", err)
 	}
 
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.pool.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("could not start transaction: %w", err)
 	}
 	defer func() {
 		if err != nil {
-			if rErr := tx.Rollback(ctx); rErr != nil {
-				s.logger.Error("Could not rollback failed transaction", adapter.Err(rErr))
+			if rErr := tx.Rollback(); rErr != nil {
+				s.logger.Error("Could not rollback failed transaction", slogx.Error(err))
 			}
 			return
 		}
 
-		err = tx.Commit(ctx)
+		err = tx.Commit()
 	}()
 
 	schedulesHash := s.schedulesHash()
 
 	// lock the record to make sure only one instance is updating the schedule
 	var currentHash string
-	qErr := tx.QueryRow(ctx, `SELECT hash FROM gueron_meta WHERE queue = $1 FOR UPDATE`, s.queue).Scan(&currentHash)
+	qErr := tx.QueryRowContext(ctx, `SELECT hash FROM gueron_meta WHERE queue = $1 FOR UPDATE`, s.queue).Scan(&currentHash)
 	if qErr != nil {
 		err = fmt.Errorf("could not get information about scheduled jobs: %w", qErr)
 		return
 	}
 
-	s.logger.Info("Refreshing jobs schedule", adapter.F("force", force), adapter.F("schedules-hash", schedulesHash), adapter.F("current-hash", currentHash))
+	s.logger.Info("Refreshing jobs schedule", slog.Bool("force", force), slog.String("schedules-hash", schedulesHash), slog.String("current-hash", currentHash))
 	if force || currentHash != schedulesHash {
 		if sErr := s.scheduleJobs(ctx, schedulesHash, tx); sErr != nil {
 			err = fmt.Errorf("could not schedule jobs: %w", sErr)
@@ -247,8 +249,8 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 	// when scheduler broke because at this point refresh job was missing, so at some point it stopped
 	// refreshing and all the processes were stuck because of, so ensure we have refresh job here as well
 	var schedulerJobID string
-	jErr := tx.QueryRow(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 AND job_type = $2`, s.queue, refreshScheduleJobType).Scan(&schedulerJobID)
-	if errors.Is(jErr, adapter.ErrNoRows) {
+	jErr := tx.QueryRowContext(ctx, `SELECT job_id FROM gue_jobs WHERE queue = $1 AND job_type = $2`, s.queue, refreshScheduleJobType).Scan(&schedulerJobID)
+	if errors.Is(jErr, sql.ErrNoRows) {
 		s.logger.Info("Could not find scheduled refresh job, so forcing refresh")
 		if sErr := s.scheduleJobs(ctx, schedulesHash, tx); sErr != nil {
 			err = fmt.Errorf("could not schedule jobs: %w", sErr)
@@ -259,7 +261,7 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 	return
 }
 
-func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx adapter.Tx) error {
+func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx *sql.Tx) error {
 	// Cleanup existing gue jobs - there can be some leftovers, e.g. jobs that are not required to run anymore,
 	// but are still scheduled.
 	if err := s.cleanupScheduledLeftovers(ctx, tx); err != nil {
@@ -271,7 +273,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx a
 	jobsToSchedule := s.jobsToSchedule(now)
 	for i := range jobsToSchedule {
 		if err := s.gueClient.EnqueueTx(ctx, &jobsToSchedule[i], tx); err != nil {
-			s.logger.Error("Could not enqueue a job", adapter.Err(err), adapter.F("job", &jobsToSchedule[i]))
+			s.logger.Error("Could not enqueue a job", slogx.Error(err), slog.Any("job", &jobsToSchedule[i]))
 			return fmt.Errorf("could not enqueue a job: %w", err)
 		}
 	}
@@ -289,12 +291,12 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx a
 		RunAt: horizonAt,
 	}
 	if err := s.gueClient.EnqueueTx(ctx, &refreshJob, tx); err != nil {
-		s.logger.Error("Could not enqueue refresh job", adapter.Err(err), adapter.F("job", &refreshJob))
+		s.logger.Error("Could not enqueue refresh job", slogx.Error(err), slog.Any("job", &refreshJob))
 		return fmt.Errorf("could not enqueue refresh job: %w", err)
 	}
 
 	// Update metadata info
-	if _, err := tx.Exec(ctx, `
+	if _, err := tx.ExecContext(ctx, `
 INSERT INTO gueron_meta (queue, hash, scheduled_at, horizon_at) VALUES ($1, $2, $3, $4)
 ON CONFLICT (queue) DO UPDATE SET hash = $2, scheduled_at = $3, horizon_at = $4`,
 		s.queue, schedulesHash, now, horizonAt,
@@ -305,7 +307,7 @@ ON CONFLICT (queue) DO UPDATE SET hash = $2, scheduled_at = $3, horizon_at = $4`
 	return nil
 }
 
-func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx) error {
+func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx *sql.Tx) error {
 	s.logger.Debug("Cleaning up scheduled leftovers")
 	defer func() {
 		s.logger.Debug("Finished leftovers cleanup")
@@ -328,7 +330,7 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 		return fmt.Errorf("could not build query to get the list of already scheduled jobs to clean them up: %w", err)
 	}
 
-	rows, err := tx.Query(ctx, sqlx.Rebind(sqlx.BindType("postgres"), query), args...)
+	rows, err := tx.QueryContext(ctx, sqlx.Rebind(sqlx.BindType("postgres"), query), args...)
 	if err != nil {
 		return fmt.Errorf("could not query the list of already scheduled jobs to clean them up: %w", err)
 	}
@@ -347,7 +349,7 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 		return fmt.Errorf("something is wrong with the list of already scheduled jobs to clean them up: %w", err)
 	}
 
-	s.logger.Debug("Leftovers jobs found", adapter.F("count", len(jobIDs)))
+	s.logger.Debug("Leftovers jobs found", slog.Int("count", len(jobIDs)))
 	if len(jobIDs) == 0 {
 		return nil
 	}
@@ -358,7 +360,7 @@ func (s *Scheduler) cleanupScheduledLeftovers(ctx context.Context, tx adapter.Tx
 	}
 
 	pgQuery := sqlx.Rebind(sqlx.BindType("postgres"), query)
-	if _, err := tx.Exec(ctx, pgQuery, args...); err != nil {
+	if _, err := tx.ExecContext(ctx, pgQuery, args...); err != nil {
 		return fmt.Errorf("could not remove jobs by IDs: %w", err)
 	}
 

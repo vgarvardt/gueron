@@ -1,9 +1,9 @@
 package gueron
 
 import (
+	"log/slog"
 	"time"
 
-	"github.com/vgarvardt/gue/v5/adapter"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -25,7 +25,7 @@ func WithPollInterval(d time.Duration) SchedulerOption {
 }
 
 // WithLogger sets logger that will be used both for scheduler and gue.Client log
-func WithLogger(logger adapter.Logger) SchedulerOption {
+func WithLogger(logger *slog.Logger) SchedulerOption {
 	return func(s *Scheduler) {
 		s.logger = logger
 	}

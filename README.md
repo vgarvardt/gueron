@@ -1,6 +1,6 @@
 # gueron
 
-[![GoDev](https://img.shields.io/static/v1?label=godev&message=reference&color=00add8)](https://pkg.go.dev/github.com/vgarvardt/gueron)
+[![GoDev](https://img.shields.io/static/v1?label=godev&message=reference&color=00add8)](https://pkg.go.dev/github.com/vgarvardt/gueron/v3)
 [![Coverage Status](https://codecov.io/gh/vgarvardt/gueron/branch/master/graph/badge.svg)](https://codecov.io/gh/vgarvardt/gueron)
 [![ReportCard](https://goreportcard.com/badge/github.com/vgarvardt/gueron)](https://goreportcard.com/report/github.com/vgarvardt/gueron)
 [![License](https://img.shields.io/npm/l/express.svg)](http://opensource.org/licenses/MIT)
@@ -15,7 +15,7 @@ be scheduled if it is critical to handle jobs ASAP and avoid delayed execution.
 ## Install
 
 ```shell
-go get -u github.com/vgarvardt/gueron/v2
+go get -u github.com/vgarvardt/gueron/v3
 ```
 
 Additionally, you need to apply [DB migration](migrations/schema.sql) (includes `gue` migration as well).
@@ -58,9 +58,9 @@ import (
   "syscall"
 
   "github.com/jackc/pgx/v5/pgxpool"
-  "github.com/vgarvardt/gue/v5"
-  "github.com/vgarvardt/gue/v5/adapter/pgxv5"
-  "github.com/vgarvardt/gueron"
+  "github.com/jackc/pgx/v5/stdlib"
+  "github.com/vgarvardt/gue/v6"
+  "github.com/vgarvardt/gueron/v3"
 )
 
 func main() {
@@ -75,9 +75,9 @@ func main() {
   }
   defer pgxPool.Close()
 
-  poolAdapter := pgxv5.NewConnPool(pgxPool)
+  db := stdlib.OpenDBFromPool(pgxPool)
 
-  s, err := gueron.NewScheduler(poolAdapter)
+  s, err := gueron.NewScheduler(db)
   if err != nil {
     log.Fatal(err)
   }
@@ -113,6 +113,7 @@ func main() {
 ```
 
 <!-- @formatter:off -->
+
 [github.com/vgarvardt/gue]: https://github.com/vgarvardt/gue
 [github.com/robfig/cron/v3]: https://github.com/robfig/cron
 [crontab format]: https://en.wikipedia.org/wiki/Cron

@@ -1,23 +1,22 @@
 package gueron
 
 import (
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	dbTest "github.com/vgarvardt/gue/v5/adapter/testing"
-	"github.com/vgarvardt/gue/v5/adapter/zap"
 	"go.opentelemetry.io/otel/metric/noop"
+	"go.uber.org/zap/exp/zapslog"
 	"go.uber.org/zap/zaptest"
 )
 
 func TestWithQueueName(t *testing.T) {
-	connPool := new(dbTest.ConnPool)
-	logger := zap.New(zaptest.NewLogger(t))
+	logger := slog.New(zapslog.NewHandler(zaptest.NewLogger(t).Core()))
 
 	qName := "custom-queue"
-	s, err := NewScheduler(connPool, WithQueueName(qName), WithHorizon(2*time.Hour), WithLogger(logger))
+	s, err := NewScheduler(nil, WithQueueName(qName), WithHorizon(2*time.Hour), WithLogger(logger))
 	require.NoError(t, err)
 	s.
 		MustAdd("@hourly", "foo", nil).
@@ -38,24 +37,21 @@ func TestWithQueueName(t *testing.T) {
 }
 
 func TestWithMeter(t *testing.T) {
-	connPool := new(dbTest.ConnPool)
-	logger := zap.New(zaptest.NewLogger(t))
+	logger := slog.New(zapslog.NewHandler(zaptest.NewLogger(t).Core()))
 	customMeter := noop.NewMeterProvider().Meter("custom")
 
-	s, err := NewScheduler(connPool, WithLogger(logger), WithMeter(customMeter))
+	s, err := NewScheduler(nil, WithLogger(logger), WithMeter(customMeter))
 	require.NoError(t, err)
 
 	assert.Equal(t, customMeter, s.meter)
 }
 
 func TestWithPollInterval(t *testing.T) {
-	connPool := new(dbTest.ConnPool)
-
-	defaultInterval, err := NewScheduler(connPool)
+	defaultInterval, err := NewScheduler(nil)
 	require.NoError(t, err)
 	assert.Equal(t, defaultPollInterval, defaultInterval.interval)
 
-	customInterval, err := NewScheduler(connPool, WithPollInterval(time.Hour))
+	customInterval, err := NewScheduler(nil, WithPollInterval(time.Hour))
 	require.NoError(t, err)
 	assert.Equal(t, time.Hour, customInterval.interval)
 }
