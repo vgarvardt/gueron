@@ -29,6 +29,7 @@ jobs:
           VALIDATE_ALL_CODEBASE: ${{ github.event_name != 'pull_request' }}
           DEFAULT_BRANCH: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VALIDATE_BIOME_FORMAT: false
           # go validator works pretty bad in super-linter, we'll use the original one
           VALIDATE_GO: false
           VALIDATE_GO_MODULES: false
