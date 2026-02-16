@@ -1,10 +1,10 @@
 module github.com/vgarvardt/gueron/v3
 
-go 1.24.0
+go 1.26
 
 require (
 	github.com/benbjohnson/clock v1.3.5
-	github.com/cappuccinotm/slogx v1.4.2
+	github.com/cappuccinotm/slogx v1.5.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/robfig/cron/v3 v3.0.1
