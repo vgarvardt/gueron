@@ -10,11 +10,22 @@ on:
     branches: [master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    permissions:
+      contents: read
+      # Super-linter publishes commit statuses and pull request summaries.
+      statuses: write
+      issues: write
+      # Also allows golangci-lint to read the diff for only-new-issues.
+      pull-requests: write
 
     steps:
       - name: Check out code
