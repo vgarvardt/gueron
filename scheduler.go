@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/cappuccinotm/slogx"
 	"github.com/jmoiron/sqlx"
 	"github.com/robfig/cron/v3"
 	"github.com/vgarvardt/gue/v6"
@@ -67,7 +66,7 @@ func NewScheduler(db *sql.DB, opts ...SchedulerOption) (*Scheduler, error) {
 		pool:     db,
 		queue:    defaultQueueName,
 		interval: defaultPollInterval,
-		logger:   slog.New(slogx.NopHandler()),
+		logger:   slog.New(slog.DiscardHandler),
 		horizon:  defaultHorizon,
 		clock:    clock.New(),
 		meter:    noop.NewMeterProvider().Meter("noop"),
@@ -219,7 +218,7 @@ func (s *Scheduler) refreshSchedule(ctx context.Context, force bool) (err error)
 	defer func() {
 		if err != nil {
 			if rErr := tx.Rollback(); rErr != nil {
-				s.logger.Error("Could not rollback failed transaction", slogx.Error(err))
+				s.logger.Error("Could not rollback failed transaction", gue.SlogError(err))
 			}
 			return
 		}
@@ -273,7 +272,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx *
 	jobsToSchedule := s.jobsToSchedule(now)
 	for i := range jobsToSchedule {
 		if err := s.gueClient.EnqueueTx(ctx, &jobsToSchedule[i], tx); err != nil {
-			s.logger.Error("Could not enqueue a job", slogx.Error(err), slog.Any("job", &jobsToSchedule[i]))
+			s.logger.Error("Could not enqueue a job", gue.SlogError(err), slog.Any("job", &jobsToSchedule[i]))
 			return fmt.Errorf("could not enqueue a job: %w", err)
 		}
 	}
@@ -291,7 +290,7 @@ func (s *Scheduler) scheduleJobs(ctx context.Context, schedulesHash string, tx *
 		RunAt: horizonAt,
 	}
 	if err := s.gueClient.EnqueueTx(ctx, &refreshJob, tx); err != nil {
-		s.logger.Error("Could not enqueue refresh job", slogx.Error(err), slog.Any("job", &refreshJob))
+		s.logger.Error("Could not enqueue refresh job", gue.SlogError(err), slog.Any("job", &refreshJob))
 		return fmt.Errorf("could not enqueue refresh job: %w", err)
 	}
 
