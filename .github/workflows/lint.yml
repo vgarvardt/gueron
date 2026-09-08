@@ -10,11 +10,22 @@ on:
     branches: [master]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     timeout-minutes: 10
+
+    permissions:
+      contents: read
+      # Super-linter publishes commit statuses and pull request summaries.
+      statuses: write
+      issues: write
+      # Also allows golangci-lint to read the diff for only-new-issues.
+      pull-requests: write
 
     steps:
       - name: Check out code
@@ -34,9 +45,15 @@ jobs:
           # go validator works pretty bad in super-linter, we'll use the original one
           VALIDATE_GO: false
           VALIDATE_GO_MODULES: false
+          # do not validate SQL - linters are pretty useless in case of this library,
+          # and the functionality is tested using integration tests
+          VALIDATE_SQL: false
+          VALIDATE_SQLFLUFF: false
           VALIDATE_CHECKOV: false
           # it forces all list items to be on a single line in .github/linters/.jscpd.json that is not pretty at all
           VALIDATE_JSON_PRETTIER: false
+          # dependabot is enough
+          VALIDATE_TRIVY: false
           # to see the problems right in the workflow output
           FIX_MARKDOWN_PRETTIER: true
 
