@@ -14,7 +14,7 @@ permissions: {}
 
 jobs:
   test:
-    name: Test (Go ${{ matrix.go-version }})
+    name: Test
     runs-on: ubuntu-latest
     permissions:
       contents: read
