@@ -11,7 +11,7 @@ rules:
     level: warning
     min-spaces-inside: 0
     max-spaces-inside: 1
-    min-spaces-inside-empty: 1
+    min-spaces-inside-empty: 0
     max-spaces-inside-empty: 5
   brackets:
     level: warning

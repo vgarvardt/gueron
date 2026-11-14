@@ -1,6 +1,10 @@
 ---
 name: "CodeQL"
 
+concurrency:
+  group: "${{ github.workflow }}-${{ github.head_ref || github.ref }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 on:
   push:
     branches: [master]
@@ -9,10 +13,13 @@ on:
   schedule:
     - cron: "0 9 * * 1"
 
+permissions: {}
+
 jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     permissions:
       contents: read
@@ -22,12 +29,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Golang
         uses: actions/setup-go@v7
         with:
           go-version-file: "./go.mod"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
