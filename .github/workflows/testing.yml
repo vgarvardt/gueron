@@ -2,7 +2,7 @@
 name: "Test"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref }}
+  group: "${{ github.workflow }}-${{ github.head_ref || github.ref }}"
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
@@ -10,32 +10,38 @@ on:
     branches: [master]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   test:
-    name: Test
+    name: Test (Go ${{ matrix.go-version }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        go-version: ["1.26", "1.27", "stable"]
     timeout-minutes: 10
     steps:
       - name: Check out code
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup Golang
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version-file: "./go.mod"
-          token: ${{ secrets.GITHUB_TOKEN }}
+          go-version: ${{ matrix.go-version }}
 
       - name: Run tests
-        run: make test
+        run: make test CGO_ENABLED=1 GO_TEST_FLAGS=-race
 
       - name: Upload coverage to Codecov
-        if: success()
+        if: matrix.go-version == 'stable'
         uses: codecov/codecov-action@v7
         env:
-          CODECOV_TOKEN: ${{secrets.CODECOV_TOKEN}}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           files: "./coverage.txt"
           fail_ci_if_error: false

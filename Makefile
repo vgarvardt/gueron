@@ -1,14 +1,19 @@
 # Set CGO_ENABLED to 0 by default for all targets
 export CGO_ENABLED = 0
+GO_TEST_FLAGS ?=
 
 # Run all tests (short, deps up, all tests, deps down)
 .PHONY: test
-test: test-short deps-up test-all deps-down
+test: test-short
+	@set -e; \
+	trap '$(MAKE) deps-down' EXIT; \
+	$(MAKE) deps-up; \
+	$(MAKE) test-all
 
 # Run short/unit tests (smoke test before spinning up dependencies)
 .PHONY: test-short
 test-short:
-	go test -timeout 2m -short ./...
+	go test $(GO_TEST_FLAGS) -timeout 2m -short ./...
 
 # Start test dependencies
 .PHONY: deps-up
@@ -25,7 +30,7 @@ deps-down:
 test-all:
 	PG_HOST=$$(docker compose port postgres 5432) && \
 	TEST_POSTGRES="postgres://test:test@$$PG_HOST/test?sslmode=disable" \
-	go test -timeout 2m -cover -coverprofile=coverage.txt -covermode=atomic ./...
+	go test $(GO_TEST_FLAGS) -timeout 2m -cover -coverprofile=coverage.txt -covermode=atomic ./...
 
 # Check spelling
 .PHONY: spell-lint

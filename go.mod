@@ -1,6 +1,6 @@
 module github.com/vgarvardt/gueron/v3
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/benbjohnson/clock v1.3.5

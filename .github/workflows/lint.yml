@@ -2,7 +2,7 @@
 name: "Lint"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref }}
+  group: "${{ github.workflow }}-${{ github.head_ref || github.ref }}"
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
@@ -10,8 +10,7 @@ on:
     branches: [master]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   lint:
@@ -21,52 +20,63 @@ jobs:
 
     permissions:
       contents: read
-      # Super-linter publishes commit statuses and pull request summaries.
-      statuses: write
-      issues: write
-      # Also allows golangci-lint to read the diff for only-new-issues.
-      pull-requests: write
 
     steps:
       - name: Check out code
         uses: actions/checkout@v7
         with:
-          # Full git history is needed to get a proper list of changed files within `super-linter`
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Lint Code Base
-        uses: super-linter/super-linter@v8
+        uses: super-linter/super-linter@v9
         env:
           VALIDATE_ALL_CODEBASE: ${{ github.event_name != 'pull_request' }}
           DEFAULT_BRANCH: master
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VALIDATE_BIOME_FORMAT: false
-          VALIDATE_GITHUB_ACTIONS_ZIZMOR: false
-          # go validator works pretty bad in super-linter, we'll use the original one
-          VALIDATE_GO: false
-          VALIDATE_GO_MODULES: false
-          # do not validate SQL - linters are pretty useless in case of this library,
-          # and the functionality is tested using integration tests
-          VALIDATE_SQL: false
-          VALIDATE_SQLFLUFF: false
-          VALIDATE_CHECKOV: false
-          # it forces all list items to be on a single line in .github/linters/.jscpd.json that is not pretty at all
-          VALIDATE_JSON_PRETTIER: false
-          # dependabot is enough
-          VALIDATE_TRIVY: false
-          # to see the problems right in the workflow output
+          MULTI_STATUS: false
+          ENABLE_GITHUB_PULL_REQUEST_SUMMARY_COMMENT: false
+          SAVE_SUPER_LINTER_SUMMARY: true
+          VALIDATE_EDITORCONFIG: true
+          VALIDATE_GITHUB_ACTIONS_ZIZMOR: true
+          VALIDATE_GITLEAKS: true
+          VALIDATE_GIT_MERGE_CONFLICT_MARKERS: true
+          VALIDATE_MARKDOWN: true
+          VALIDATE_MARKDOWN_PRETTIER: true
+          VALIDATE_SPELL_CODESPELL: true
+          VALIDATE_YAML: true
+          SPELL_CODESPELL_CONFIG_FILE: ../../.codespellrc
           FIX_MARKDOWN_PRETTIER: true
 
       - name: Check linter fixes
         if: failure()
-        run: |
-          git --no-pager diff
+        run: git --no-pager diff
+
+      # Use the fork for current workflow syntax support.
+      - name: Lint GitHub Actions
+        if: ${{ !cancelled() }}
+        uses: kjanat/actionlint@v1.17.0
+
+  golangci:
+    name: Lint Golang
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Golang
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: "./go.mod"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lint Golang
         uses: golangci/golangci-lint-action@v9
@@ -74,12 +84,4 @@ jobs:
           only-new-issues: ${{ github.event_name == 'pull_request' }}
           args: >
             --config=./.github/linters/.golangci.yml
-
-  codespell:
-    name: Check spelling
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - uses: actions/checkout@v7
-      - uses: codespell-project/actions-codespell@v2
+            --timeout=5m
