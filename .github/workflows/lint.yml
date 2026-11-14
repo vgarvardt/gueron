@@ -45,7 +45,6 @@ jobs:
           VALIDATE_MARKDOWN_PRETTIER: true
           VALIDATE_SPELL_CODESPELL: true
           VALIDATE_YAML: true
-          SPELL_CODESPELL_CONFIG_FILE: ../../.codespellrc
           FIX_MARKDOWN_PRETTIER: true
 
       - name: Check linter fixes
