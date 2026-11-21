@@ -54,7 +54,7 @@ jobs:
       # Use the fork for current workflow syntax support.
       - name: Lint GitHub Actions
         if: ${{ !cancelled() }}
-        uses: kjanat/actionlint@v1.17.0
+        uses: kjanat/actionlint@v1.17.1
 
   golangci:
     name: Lint Golang
